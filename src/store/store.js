@@ -9,6 +9,7 @@ import positionsListReducer from "../features/auth/positions/Positionslist/Posit
 import usersPositionReducer from "../features/auth/positions/Usersposition/UserspositionSlice";
 import positionDetailReducer from "../features/auth/positions/Positiondetail/Positiondetailslice";
 import positionsReducer from "../features/auth/positions/Positionslice";
+import addPositionsToUsersReducer from "../features/auth/positions/addpositiontousers/addPositionsToUsersSlice";
 
 
 export const store = configureStore({
@@ -23,5 +24,6 @@ export const store = configureStore({
     usersPosition: usersPositionReducer,
     positionDetail: positionDetailReducer,
     positions: positionsReducer,
+    addPositionsToUsers: addPositionsToUsersReducer,
   },
 });

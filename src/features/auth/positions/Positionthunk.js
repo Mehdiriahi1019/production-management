@@ -3,9 +3,9 @@ import PositionsService from "./Positionservice";
 
 export const getPositionsThunk = createAsyncThunk(
   "positions/getPositions",
-  async (_, { rejectWithValue }) => {
+  async (params = {}, { rejectWithValue }) => {
     try {
-      const data = await PositionsService.getPositions();
+      const data = await PositionsService.getPositions(params);
       return data;
     } catch (error) {
       return rejectWithValue(error.response?.data || error.message);

@@ -16,12 +16,174 @@ import PositionTree from "./PositionTree";
 import UsersTable from "./UsersTable";
 import CreatePositionModal from "./CreatePositionModal";
 
-// ======== مودال ویرایش سمت ========
-// ======== مودال ویرایش سمت ========
-// ======== مودال ویرایش سمت ========
+// ======== کامپوننت سرچ و انتخاب والد (باز شدن به سمت بالا) ========
+const SearchableParentSelect = ({ value, onChange, disabled, allPositions }) => {
+  const [isOpen, setIsOpen] = useState(false);
+  const [searchTerm, setSearchTerm] = useState("");
+  const [selectedLabel, setSelectedLabel] = useState("");
+  const dropdownRef = useRef(null);
+  const inputRef = useRef(null);
+
+  // پیدا کردن برچسب انتخاب شده
+  useEffect(() => {
+    if (value) {
+      const found = allPositions.find(p => p.id === value);
+      setSelectedLabel(found ? `${found.display_name} (${found.code})` : "");
+    } else {
+      setSelectedLabel("");
+    }
+  }, [value, allPositions]);
+
+  // فیلتر کردن پوزیشن‌ها بر اساس سرچ
+  const filteredPositions = allPositions.filter(p => {
+    if (!searchTerm.trim()) return true;
+    const search = searchTerm.trim().toLowerCase();
+    return (
+      p.display_name?.toLowerCase().includes(search) ||
+      p.code?.toLowerCase().includes(search) ||
+      `${p.display_name} ${p.code}`.toLowerCase().includes(search)
+    );
+  });
+
+  // بستن دراپ‌داون با کلیک خارج
+  useEffect(() => {
+    const handleClickOutside = (event) => {
+      if (dropdownRef.current && !dropdownRef.current.contains(event.target)) {
+        setIsOpen(false);
+      }
+    };
+    document.addEventListener("mousedown", handleClickOutside);
+    return () => document.removeEventListener("mousedown", handleClickOutside);
+  }, []);
+
+  const handleSelect = (position) => {
+    onChange(position.id);
+    setSelectedLabel(`${position.display_name} (${position.code})`);
+    setIsOpen(false);
+    setSearchTerm("");
+  };
+
+  const handleSelectNone = () => {
+    onChange(null);
+    setSelectedLabel("");
+    setIsOpen(false);
+    setSearchTerm("");
+  };
+
+  const handleClear = (e) => {
+    e.stopPropagation();
+    onChange(null);
+    setSelectedLabel("");
+    setSearchTerm("");
+    setIsOpen(false);
+  };
+
+  const toggleDropdown = () => {
+    if (!disabled) {
+      setIsOpen(!isOpen);
+      if (!isOpen) {
+        setTimeout(() => inputRef.current?.focus(), 100);
+      }
+    }
+  };
+
+  return (
+    <div className="relative" ref={dropdownRef}>
+      {/* ورودی اصلی */}
+      <div
+        className={`bg-Input_bg border border-Card_border rounded-lg px-3 py-2 text-sm text-Primary focus-within:ring-1 focus-within:ring-Secondary cursor-text ${
+          disabled ? "opacity-50 cursor-not-allowed" : ""
+        }`}
+        onClick={toggleDropdown}
+      >
+        <div className="flex items-center gap-2">
+          <input
+            ref={inputRef}
+            type="text"
+            placeholder="جستجوی والد..."
+            value={isOpen ? searchTerm : selectedLabel}
+            onChange={(e) => {
+              setSearchTerm(e.target.value);
+              if (!isOpen) setIsOpen(true);
+            }}
+            onFocus={() => !disabled && setIsOpen(true)}
+            disabled={disabled}
+            className="flex-1 bg-transparent outline-none text-sm text-Primary placeholder:text-Muted/60 min-w-0"
+            dir="rtl"
+          />
+          
+          {selectedLabel && !isOpen && (
+            <button
+              type="button"
+              onClick={handleClear}
+              disabled={disabled}
+              className="flex-shrink-0 text-Muted hover:text-red-500 transition-colors"
+            >
+              <i className="fas fa-times text-xs" />
+            </button>
+          )}
+          
+          <button
+            type="button"
+            onClick={toggleDropdown}
+            disabled={disabled}
+            className="flex-shrink-0 text-Muted hover:text-Secondary transition-colors"
+          >
+            <i className={`fas fa-chevron-${isOpen ? "up" : "down"} text-[10px]`} />
+          </button>
+        </div>
+      </div>
+
+      {/* دراپ‌داون (باز شدن به سمت بالا) */}
+      {isOpen && !disabled && (
+        <div className="absolute z-50 w-full mb-1 bottom-full bg-Background border border-Card_border rounded-lg shadow-lg max-h-52 overflow-y-auto">
+          {/* گزینه بدون والد */}
+          <button
+            type="button"
+            onClick={handleSelectNone}
+            className={`w-full px-3 py-2 text-right text-xs transition-colors hover:bg-Input_bg flex items-center justify-between ${
+              value === null ? "bg-Secondary/10 text-Secondary" : "text-Primary"
+            }`}
+          >
+            <span>بدون والد</span>
+            {value === null && (
+              <i className="fas fa-check text-Secondary text-[10px] mr-2" />
+            )}
+          </button>
+
+          {/* خط جداکننده */}
+          <div className="border-t border-Card_border my-1" />
+
+          {filteredPositions.length === 0 ? (
+            <div className="px-3 py-2 text-xs text-Muted">نتیجه‌ای یافت نشد</div>
+          ) : (
+            filteredPositions.map((p) => (
+              <button
+                key={p.id}
+                type="button"
+                onClick={() => handleSelect(p)}
+                className={`w-full px-3 py-2 text-right text-xs transition-colors hover:bg-Input_bg flex items-center justify-between ${
+                  value === p.id ? "bg-Secondary/10 text-Secondary" : "text-Primary"
+                }`}
+              >
+                <span>{p.display_name}</span>
+                <span className="text-Muted text-[10px]">{p.code}</span>
+                {value === p.id && (
+                  <i className="fas fa-check text-Secondary text-[10px] mr-2" />
+                )}
+              </button>
+            ))
+          )}
+        </div>
+      )}
+    </div>
+  );
+};
+
+// ======== مودال ویرایش پوزیشن ========
 const EditPositionModal = ({ position, onClose, onSubmit }) => {
   const dispatch = useDispatch();
-
+  
   const allPositions = useSelector((state) => state.positions?.positions || []);
   const positionsLoading = useSelector((state) => state.positions?.loading || false);
   const positionsLoaded = useSelector((state) => state.positions?.loaded || false);
@@ -44,16 +206,15 @@ const EditPositionModal = ({ position, onClose, onSubmit }) => {
     if (position) {
       setDisplayName(position.display_name || "");
       setCode(position.code || "");
-
-      // ======== اگر parent وجود داشت، در لیست allPositions پیدا کن ========
+      
       const parentValue = position.parent || position.parent_id;
       if (parentValue) {
-        const foundParent = allPositions.find((p) => p.id === parentValue);
+        const foundParent = allPositions.find(p => p.id === parentValue);
         setParentId(foundParent ? foundParent.id : null);
       } else {
         setParentId(null);
       }
-
+      
       setIsActive(position.is_active !== undefined ? position.is_active : true);
     }
   }, [position, allPositions]);
@@ -68,10 +229,8 @@ const EditPositionModal = ({ position, onClose, onSubmit }) => {
       display_name: displayName,
       code: code,
       is_active: isActive,
+      parent_id: parentId,
     };
-
-    // ======== اگر parentId null باشه، null ارسال میشه ========
-    payload.parent_id = parentId;
 
     if (position) {
       if (position.updated_at) {
@@ -81,8 +240,6 @@ const EditPositionModal = ({ position, onClose, onSubmit }) => {
         payload.updated_by = position.updated_by;
       }
     }
-
-    console.log("payload:", payload);
 
     try {
       await onSubmit(payload);
@@ -108,11 +265,11 @@ const EditPositionModal = ({ position, onClose, onSubmit }) => {
         className="bg-Background border border-Card_border rounded-xl p-6 max-w-md w-full max-h-[90vh] overflow-y-auto"
         onClick={(e) => e.stopPropagation()}
       >
-        <h4 className="text-sm font-medium text-Primary mb-4">ویرایش سمت</h4>
+        <h4 className="text-sm font-medium text-Primary mb-4">ویرایش پوزیشن</h4>
 
         <form onSubmit={handleSubmit} className="flex flex-col gap-3">
           <div className="flex flex-col gap-1.5">
-            <label className="text-xs text-Muted">عنوان سمت</label>
+            <label className="text-xs text-Muted">عنوان پوزیشن</label>
             <input
               type="text"
               value={displayName}
@@ -155,23 +312,12 @@ const EditPositionModal = ({ position, onClose, onSubmit }) => {
 
           <div className="flex flex-col gap-1.5">
             <label className="text-xs text-Muted">والد</label>
-            <select
-              value={parentId === null ? "" : parentId}
-              onChange={(e) => {
-                const value = e.target.value;
-                // ======== اگر مقدار خالی بود، null بذار ========
-                setParentId(value === "" ? null : value);
-              }}
+            <SearchableParentSelect
+              value={parentId}
+              onChange={setParentId}
               disabled={submitting}
-              className="bg-Input_bg border border-Card_border rounded-lg px-3 py-2 text-sm text-Primary focus:outline-none focus:ring-1 focus:ring-Secondary"
-            >
-              <option value="">بدون والد</option>
-              {allPositions.map((p) => (
-                <option key={p.id} value={p.id}>
-                  {p.display_name} ({p.code})
-                </option>
-              ))}
-            </select>
+              allPositions={allPositions}
+            />
             {fieldErrors.parent_id && (
               <span className="text-[11px] text-red-500">{fieldErrors.parent_id}</span>
             )}
@@ -185,7 +331,7 @@ const EditPositionModal = ({ position, onClose, onSubmit }) => {
               disabled={submitting || !displayName.trim() || !code.trim()}
               className="flex-1 h-10 rounded-lg bg-Secondary text-white text-sm font-medium hover:opacity-90 transition-opacity disabled:opacity-50"
             >
-              {submitting ? "در حال ویرایش..." : "ویرایش سمت"}
+              {submitting ? "در حال ویرایش..." : "ویرایش پوزیشن"}
             </button>
             <button
               type="button"
@@ -203,22 +349,26 @@ const EditPositionModal = ({ position, onClose, onSubmit }) => {
 };
 
 // ======== یه آیتم توی زیرمنوی فرزندها ========
-// ======== فرزندها دیگه از ریداکس خونده می‌شن (نه state لوکال) ========
-// ======== پس با collapse/expand مجدد یا remount شدن، دوباره فچ نمی‌زنه ========
 const PositionSubmenuItem = ({ position, depth, dispatch, selectedId }) => {
   const [isExpanded, setIsExpanded] = useState(false);
+  const [children, setChildren] = useState(null);
+  const [childrenLoading, setChildrenLoading] = useState(false);
+  const [childrenError, setChildrenError] = useState(null);
   const [showCreateModal, setShowCreateModal] = useState(false);
 
-  const childState = useSelector(
-    (state) => state.positionsList.childrenByParent[position.id]
-  );
-  const children = childState?.data ?? null;
-  const childrenLoading = childState?.loading ?? false;
-  const childrenLoaded = childState?.loaded ?? false;
-  const childrenError = childState?.error?.message?.fa || childState?.error || null;
-
   const fetchChildren = () => {
-    return dispatch(getPositionsListThunk({ parent_id: position.id })).unwrap();
+    setChildrenLoading(true);
+    setChildrenError(null);
+
+    return dispatch(getPositionsListThunk({ parent_id: position.id }))
+      .unwrap()
+      .then((res) => {
+        setChildren(res?.data || []);
+      })
+      .catch((err) =>
+        setChildrenError(err?.message?.fa || "خطا در دریافت زیرمجموعه‌ها")
+      )
+      .finally(() => setChildrenLoading(false));
   };
 
   const handleToggle = (e) => {
@@ -228,8 +378,7 @@ const PositionSubmenuItem = ({ position, depth, dispatch, selectedId }) => {
     const next = !isExpanded;
     setIsExpanded(next);
 
-    // ======== فقط اگه توی ریداکس لود نشده بود (یا در حال لود نبود)، درخواست بزن ========
-    if (next && !childrenLoaded && !childrenLoading) {
+    if (next && children === null) {
       fetchChildren();
     }
   };
@@ -246,7 +395,7 @@ const PositionSubmenuItem = ({ position, depth, dispatch, selectedId }) => {
     ).unwrap();
 
     setIsExpanded(true);
-    await fetchChildren(); // بعد از ساخت فرزند جدید، باید دوباره فچ بشه چون داده تغییر کرده
+    await fetchChildren();
     return result;
   };
 
@@ -469,15 +618,12 @@ const PositionsAndUsersPage = () => {
   const positionsError = useSelector((state) => state.positionsList.error);
   const positionsLoaded = useSelector((state) => state.positionsList.loaded);
 
-  // ======== کش فرزندان هر پوزیشن، حالا از ریداکس (نه state لوکال) ========
-  // پس با collapse/expand، از بین نمی‌ره و دوباره فچ نمی‌زنه
-  const childrenByParent = useSelector((state) => state.positionsList.childrenByParent);
-
   const usersPositionData = useSelector((state) => state.usersPosition.data);
   const usersPositionLoading = useSelector((state) => state.usersPosition.loading);
   const usersPositionError = useSelector((state) => state.usersPosition.error);
   const usersPositionLoaded = useSelector((state) => state.usersPosition.loaded);
 
+  const [rootChildrenCache, setRootChildrenCache] = useState({});
   const [createModal, setCreateModal] = useState(null);
   const [editModal, setEditModal] = useState(null);
 
@@ -488,7 +634,13 @@ const PositionsAndUsersPage = () => {
   const hasFetchedPositions = useRef(false);
   const hasFetchedUsersPosition = useRef(false);
 
-  // ======== بارگذاری سمت‌ها برای لیست والدین ========
+  useEffect(() => {
+    if (!expandedId) {
+      setRootChildrenCache({});
+    }
+  }, [expandedId]);
+
+  // ======== بارگذاری پوزیشن‌ها برای لیست والدین ========
   useEffect(() => {
     if (!positionsLoaded && !positionsLoading && !hasFetchedPositions.current) {
       hasFetchedPositions.current = true;
@@ -496,7 +648,7 @@ const PositionsAndUsersPage = () => {
     }
   }, [dispatch, positionsLoaded, positionsLoading]);
 
-  // ======== بارگذاری همه سمت‌ها برای سلکت والد در مودال ویرایش ========
+  // ======== بارگذاری همه پوزیشن‌ها برای سلکت والد در مودال ویرایش ========
   useEffect(() => {
     if (!positionsLoaded && !positionsLoading) {
       dispatch(getPositionsThunk());
@@ -527,7 +679,7 @@ const PositionsAndUsersPage = () => {
       })
       .catch((err) => {
         if (isMounted)
-          setPositionDetailError(err?.message?.fa || "خطا در دریافت جزئیات سمت");
+          setPositionDetailError(err?.message?.fa || "خطا در دریافت جزئیات پوزیشن");
       })
       .finally(() => {
         if (isMounted) setPositionDetailLoading(false);
@@ -559,7 +711,29 @@ const PositionsAndUsersPage = () => {
   };
 
   const fetchRootChildren = (positionId) => {
-    return dispatch(getPositionsListThunk({ parent_id: positionId })).unwrap();
+    setRootChildrenCache((prev) => ({
+      ...prev,
+      [positionId]: { data: null, loading: true, error: null },
+    }));
+
+    return dispatch(getPositionsListThunk({ parent_id: positionId }))
+      .unwrap()
+      .then((res) =>
+        setRootChildrenCache((prev) => ({
+          ...prev,
+          [positionId]: { data: res?.data || [], loading: false, error: null },
+        }))
+      )
+      .catch((err) =>
+        setRootChildrenCache((prev) => ({
+          ...prev,
+          [positionId]: {
+            data: [],
+            loading: false,
+            error: err?.message?.fa || "خطا در دریافت زیرمجموعه‌ها",
+          },
+        }))
+      );
   };
 
   const handleToggleRoot = (position) => {
@@ -574,9 +748,7 @@ const PositionsAndUsersPage = () => {
     next.set("expanded", position.id);
     setSearchParams(next);
 
-    const existing = childrenByParent[position.id];
-    // ======== فقط اگه توی ریداکس نبود یا لود/در حال لود نبود، فچ بزن ========
-    if (!existing || (!existing.loaded && !existing.loading)) {
+    if (!rootChildrenCache[position.id]) {
       fetchRootChildren(position.id);
     }
   };
@@ -586,7 +758,7 @@ const PositionsAndUsersPage = () => {
     next.delete("expanded");
     setSearchParams(next);
 
-    // ======== بازگشت واقعی به ریشه: این‌جا کش فرزندان هم پاک می‌شه (داخل resetPositionsList) ========
+    setRootChildrenCache({});
     dispatch(resetPositionsList());
     dispatch(getPositionsListThunk({ limit: 20, offset: 0 }));
 
@@ -627,7 +799,7 @@ const PositionsAndUsersPage = () => {
       const next = new URLSearchParams(searchParams);
       next.set("expanded", createModal.parentId);
       setSearchParams(next);
-      fetchRootChildren(createModal.parentId); // داده عوض شده، باید دوباره فچ بشه
+      fetchRootChildren(createModal.parentId);
     }
 
     return result;
@@ -673,7 +845,7 @@ const PositionsAndUsersPage = () => {
       <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 mb-4 sm:mb-6">
         <div>
           <h1 className="text-base font-medium text-Primary">مدیریت سازمان</h1>
-          <p className="text-xs text-Muted">لیست سمت‌ها و کاربران</p>
+          <p className="text-xs text-Muted">لیست پوزیشن‌ها و کاربران</p>
         </div>
 
         {(positionId || expandedId) && (
@@ -688,12 +860,12 @@ const PositionsAndUsersPage = () => {
         )}
       </div>
 
-      {/* نمایش اطلاعات سمت انتخاب شده */}
+      {/* نمایش اطلاعات پوزیشن انتخاب شده */}
       {positionId && activePosition && (
         <div className="mb-4 p-3 bg-Secondary/5 border border-Secondary/20 rounded-lg">
           <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2">
             <div className="min-w-0">
-              <span className="text-xs text-Muted">سمت انتخاب شده:</span>
+              <span className="text-xs text-Muted">پوزیشن انتخاب شده:</span>
               <span className="mr-2 text-sm font-medium text-Primary">
                 {activePosition.display_name}
               </span>
@@ -707,7 +879,7 @@ const PositionsAndUsersPage = () => {
 
       {/* دو ستون */}
       <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-        {/* ستون چپ - درخت سمت‌ها */}
+        {/* ستون چپ - درخت پوزیشن‌ها */}
         <div className="md:col-span-1">
           <PositionTree
             positions={positions}
@@ -717,18 +889,18 @@ const PositionsAndUsersPage = () => {
             selectedId={positionId}
             onToggleRoot={handleToggleRoot}
             onAddChild={handleOpenCreateChildForRoot}
-            childrenCache={childrenByParent}
+            childrenCache={rootChildrenCache}
             onBackToParents={handleBackToParents}
             onOpenCreateRoot={handleOpenCreateRoot}
           />
         </div>
 
-        {/* ستون راست - جزئیات سمت یا جدول کاربران */}
+        {/* ستون راست - جزئیات پوزیشن یا جدول کاربران */}
         <div className="md:col-span-2">
           {positionId ? (
             <div className="bg-Background border border-Card_border rounded-xl overflow-hidden">
               <div className="px-4 py-3 border-b border-Card_border">
-                <h3 className="text-sm font-medium text-Primary">جزئیات سمت</h3>
+                <h3 className="text-sm font-medium text-Primary">جزئیات پوزیشن</h3>
               </div>
 
               {positionDetailLoading ? (
@@ -835,12 +1007,12 @@ const PositionsAndUsersPage = () => {
         </div>
       </div>
 
-      {/* مودال ساخت سمت */}
+      {/* مودال ساخت پوزیشن */}
       {createModal && (
         <CreatePositionModal
           title={
             createModal.parentId === null
-              ? "افزودن سمت جدید"
+              ? "افزودن پوزیشن جدید"
               : `افزودن زیرمجموعه برای «${createModal.parentLabel}»`
           }
           onClose={() => setCreateModal(null)}
@@ -848,7 +1020,7 @@ const PositionsAndUsersPage = () => {
         />
       )}
 
-      {/* مودال ویرایش سمت */}
+      {/* مودال ویرایش پوزیشن */}
       {editModal && (
         <EditPositionModal
           position={editModal.positionDetail}
