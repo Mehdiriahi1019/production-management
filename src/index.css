@@ -1,0 +1,53 @@
+@import "tailwindcss";
+
+body {
+  font-family: "Vazirmatn", sans-serif;
+  margin: 0;
+  padding: 0;
+}
+
+@theme {
+  --color-Signin_background: var(--signin-background);
+  --color-Background: var(--background);
+  --color-Card_border: var(--card-border);
+  --color-Input_bg: var(--input-bg);
+  --color-Input_border: var(--input-border);
+  --color-Primary: var(--primary);
+  --color-Muted: var(--muted);
+  --color-Secondary: var(--secondary);
+  --color-Secondary_hover: var(--secondary-hover);
+  --color-Secondary_pressed: var(--secondary-pressed);
+  --color-Disabled: var(--disabled);
+}
+
+
+/* Dark */
+:root {
+  --signin-background: #050124;
+  --background: #0D0A3D;
+  --card-border: #231C6B;
+  --input-bg: #0A0733;
+  --input-border: #2A2470;
+  --primary: #EDEBFA;
+  --muted: #A7A2D6;
+  --secondary: #8B6CFF;
+  --secondary-hover: #A78BFF;
+  --secondary-pressed: #7A57F5;
+  --disabled: #2A2470;
+}
+
+
+/* Light */
+[data-theme="light"] {
+  --signin-background: #F7F5FF;
+  --background: #FFFFFF;
+  --card-border: #E3DDF8;
+  --input-bg: #F5F2FF;
+  --input-border: #D8D0F5;
+  --primary: #19152E;
+  --muted: #756F91;
+  --secondary: #6D4AFF;
+  --secondary-hover: #856BFF;
+  --secondary-pressed: #5738E6;
+  --disabled: #DAD5EE;
+}
