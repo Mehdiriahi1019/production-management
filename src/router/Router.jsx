@@ -10,6 +10,7 @@ import Profile from "../pages/auth/Profile";
 import Users from "../pages/users/Users";
 import EditUserPage from "../pages/users/Edituserpage";
 import PositionsAndUsersPage from "../pages/users/PositionsAndUsersPage";
+import Production from "../pages/production/Production";
 
 export const router = createBrowserRouter([
   {
@@ -49,14 +50,16 @@ export const router = createBrowserRouter([
             element: <EditUserPage />,
           },
           {
-            // بدون پارامتر: هیچ سمتی انتخاب نشده
             path: "/positionsanduserspage",
             element: <PositionsAndUsersPage />,
           },
           {
-            // با پارامتر: یه سمت خاص انتخاب شده و جزئیاتش نشون داده میشه
             path: "/positionsanduserspage/:positionId",
             element: <PositionsAndUsersPage />,
+          },
+          {
+            path: "/productionpage",
+            element: <Production/>,
           },
           {
             path: "*",

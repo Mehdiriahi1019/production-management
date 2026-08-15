@@ -7,6 +7,7 @@ export default defineConfig({
   plugins: [
     react(),
     tailwindcss(),
+
     VitePWA({
       registerType: 'autoUpdate',
 
@@ -36,5 +37,16 @@ export default defineConfig({
 
   server: {
     host: true,
+
+    watch: {
+      usePolling: true,
+    },
+  },
+
+  // اجبار Vite به پیش‌باندل کردن این پکیج‌های CJS به‌صورت درست
+  // برای رفع باگ interop که باعث ارور "Element type is invalid" میشه
+  optimizeDeps: {
+    include: ['react-multi-date-picker', 'react-date-object'],
+    force: true,
   },
 })
