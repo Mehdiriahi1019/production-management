@@ -12,6 +12,11 @@ import positionsReducer from "../features/auth/positions/Positionslice";
 import addPositionsToUsersReducer from "../features/auth/positions/addpositiontousers/addPositionsToUsersSlice";
 import servicesListReducer from "../features/production/services/serviceslist/serviceslistslice";
 import serviceDetailSlicereducer from "../features/production/services/serviceditails/serviceditailsslice";
+import servicesForSelectReducer from "../features/servicesforselect/ServicesForSelectSlice";
+import paintsListReducer from "../features/production/paints/paintslistslice"
+import paintDetailReducer from "../features/production/paints/paintditail/paintdetailslice";
+import devicesListReducer from "../features/production/devices/devicesslice"
+
 
 
 export const store = configureStore({
@@ -29,5 +34,9 @@ export const store = configureStore({
     addPositionsToUsers: addPositionsToUsersReducer,
     servicesList: servicesListReducer,
     serviceDetail: serviceDetailSlicereducer,
+    servicesForSelect: servicesForSelectReducer,
+    paintsList: paintsListReducer,
+    paintDetail: paintDetailReducer,
+    devicesList: devicesListReducer
   },
 });

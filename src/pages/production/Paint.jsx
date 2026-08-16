@@ -1,17 +1,18 @@
-import React, { useEffect, useMemo, useState } from "react";
-import { createPortal } from "react-dom";
-import { useDispatch, useSelector } from "react-redux";
-import { useSearchParams } from "react-router-dom";
+// pages/Paint.jsx
+import React, { useEffect, useState, useMemo, useRef } from 'react';
+import { createPortal } from 'react-dom';
+import { useDispatch, useSelector } from 'react-redux';
+import { useSearchParams } from 'react-router-dom';
 import * as DatePickerModule from "react-multi-date-picker";
 import * as persianModule from "react-date-object/calendars/persian";
 import * as persian_faModule from "react-date-object/locales/persian_fa";
 import "react-multi-date-picker/styles/layouts/mobile.css";
-import { useRef } from "react";
-import { getServicesList } from "../../features/production/services/serviceslist/serviceslistthunk";
-import { getServiceDetail } from "../../features/production/services/serviceditails/serviceditailsthunk";
-import { clearServiceDetail } from "../../features/production/services/serviceditails/serviceditailsslice";
-import { updateService } from "../../features/production/services/serviceupdate/serviceupdatethunk";
-import { createServiceThunk } from "../../features/production/services/servicecreate/serviceCreateThunk";
+import { getPaintsListThunk } from '../../features/production/paints/paintslistthunk';
+import { clearPaintsError } from '../../features/production/paints/paintslistslice';
+import { createPaintThunk } from '../../features/production/paints/paintcreate/PaintCreateThunk';
+import {getPaintDetailThunk} from '../../features/production/paints/paintditail/paintdetailthunk';
+import { updatePaintThunk } from '../../features/production/paints/paintupdate/PaintUpdateThunk';
+import { clearPaintDetail } from '../../features/production/paints/paintditail/paintdetailslice';
 
 const unwrapModule = (mod) => {
   let current = mod;
@@ -68,7 +69,6 @@ const DEFAULT_FILTERS = {
   created_at__gte: "",
   created_at__lte: "",
   created_at__range: "",
-  parent_id: "",
   ordering: "",
   limit: 20,
   offset: 0,
@@ -100,6 +100,8 @@ const filtersToSearchParams = (filters) => {
 
 const ORDERING_OPTIONS = [
   { value: "", label: "پیش‌فرض" },
+  { value: "name", label: "بر اساس نام (صعودی)" },
+  { value: "-name", label: "بر اساس نام (نزولی)" },
   { value: "created_at", label: "قدیمی‌ترین" },
   { value: "-created_at", label: "جدیدترین" },
   { value: "updated_at", label: "آخرین به‌روزرسانی (صعودی)" },
@@ -127,45 +129,73 @@ const buildParams = (filters) => {
   return params;
 };
 
-const DetailsEditModal = ({ itemId, isOpen, onClose, onSave }) => {
+// ======== تابع استخراج پیام خطا دقیقاً از سرور ========
+const extractErrorMessage = (err) => {
+  if (!err) return "خطایی رخ داد";
+  if (typeof err === "string") return err;
+  if (err.fa) return err.fa;
+  if (err.detail) return err.detail;
+  if (err.message?.fa) return err.message.fa;
+
+  const firstKey = Object.keys(err)[0];
+  if (firstKey && Array.isArray(err[firstKey])) {
+    return err[firstKey][0];
+  }
+  if (firstKey && typeof err[firstKey] === "string") {
+    return err[firstKey];
+  }
+
+  return "خطایی رخ داد";
+};
+
+// ======== مودال جزئیات و ویرایش ========
+// این مودال دیگه کل آیتم رو از جدول نمی‌گیره؛ فقط "itemId" رو می‌گیره
+// و خودش با دیسپچ کردن getPaintDetailThunk(id) جزئیات رو از API جدا
+// (اسلایس/تانک paintDetail) می‌گیره.
+const DetailsEditModal = ({ itemId, isOpen, onClose, onSaved }) => {
   const dispatch = useDispatch();
   const {
-    data: detail,
+    data: item,
     loading: detailLoading,
     error: detailError,
-  } = useSelector((state) => state.serviceDetail);
+    saving: isSaving,
+    saveError,
+  } = useSelector((state) => state.paintDetail);
 
   const [isEditing, setIsEditing] = useState(false);
   const [formValues, setFormValues] = useState({
     display_name: "",
     code: "",
+    is_active: true,
     updated_at: "",
   });
-  const [isSaving, setIsSaving] = useState(false);
-  const [saveError, setSaveError] = useState(null);
 
+  // با باز شدن مودال (یا تغییر آیدی)، جزئیات رو از سرور بگیر
   useEffect(() => {
     if (isOpen && itemId) {
       setIsEditing(false);
-      dispatch(getServiceDetail(itemId));
+      dispatch(getPaintDetailThunk(itemId));
     }
   }, [isOpen, itemId, dispatch]);
 
+  // با بسته شدن مودال، دیتای قبلی رو پاک کن تا دفعه‌ی بعد چشمک نزنه
   useEffect(() => {
     if (!isOpen) {
-      dispatch(clearServiceDetail());
+      dispatch(clearPaintDetail());
     }
   }, [isOpen, dispatch]);
 
+  // وقتی جزئیات از سرور رسید، فرم ادیت رو باهاش پر کن
   useEffect(() => {
-    if (detail) {
+    if (item) {
       setFormValues({
-        display_name: detail.display_name || "",
-        code: detail.code || "",
-        updated_at: detail.updated_at || "",
+        display_name: item.display_name || item.name || "",
+        code: item.code || "",
+        is_active: item.is_active !== false,
+        updated_at: item.updated_at || "",
       });
     }
-  }, [detail]);
+  }, [item]);
 
   useEffect(() => {
     if (isOpen) {
@@ -183,18 +213,47 @@ const DetailsEditModal = ({ itemId, isOpen, onClose, onSave }) => {
     setFormValues((prev) => ({ ...prev, [key]: e.target.value }));
   };
 
+  const handleActiveToggle = () => {
+    setFormValues((prev) => ({ ...prev, is_active: !prev.is_active }));
+  };
+
   const handleSaveClick = async () => {
-    setIsSaving(true);
-    setSaveError(null);
+    if (!itemId) {
+      // eslint-disable-next-line no-console
+      console.warn("handleSaveClick: itemId خالیه، درخواست اصلاً ارسال نمیشه");
+      return;
+    }
+
+    // eslint-disable-next-line no-console
+    console.log("در حال ارسال درخواست ویرایش برای آیدی:", itemId, {
+      display_name: formValues.display_name,
+      code: formValues.code,
+      is_active: formValues.is_active,
+      updated_at: formValues.updated_at,
+    });
+
     try {
-      await onSave(itemId, formValues);
+      const result = await dispatch(
+        updatePaintThunk({
+          id: itemId,
+          display_name: formValues.display_name,
+          code: formValues.code,
+          is_active: formValues.is_active,
+          updated_at: formValues.updated_at,
+        })
+      ).unwrap();
+
+      // eslint-disable-next-line no-console
+      console.log("ویرایش با موفقیت انجام شد:", result);
+
+      // رفرش جزئیات همین مودال تا مقادیر جدید درجا نمایش داده بشن
+      dispatch(getPaintDetailThunk(itemId));
+
+      onSaved?.();
       setIsEditing(false);
     } catch (err) {
-      setSaveError(
-        typeof err === "string" ? err : err?.fa || "خطا در ثبت ویرایش"
-      );
-    } finally {
-      setIsSaving(false);
+      // eslint-disable-next-line no-console
+      console.error("خطا در ارسال درخواست ویرایش:", err);
     }
   };
 
@@ -210,7 +269,7 @@ const DetailsEditModal = ({ itemId, isOpen, onClose, onSave }) => {
       >
         <div className="flex items-center justify-between px-4 py-3 border-b border-Card_border">
           <h3 className="text-sm font-medium text-Primary">
-            {isEditing ? "ویرایش سرویس" : "جزئیات سرویس"}
+            {isEditing ? "ویرایش رنگ" : "جزئیات رنگ"}
           </h3>
           <button
             type="button"
@@ -232,12 +291,10 @@ const DetailsEditModal = ({ itemId, isOpen, onClose, onSave }) => {
           <div className="flex items-center justify-center h-[180px] px-4 text-center">
             <span className="text-sm text-red-500">
               <i className="fa-solid fa-triangle-exclamation ml-1" />
-              {typeof detailError === "string"
-                ? detailError
-                : detailError?.fa || "خطا در دریافت جزئیات سرویس"}
+              {extractErrorMessage(detailError)}
             </span>
           </div>
-        ) : detail ? (
+        ) : item ? (
           <>
             <div className="flex flex-col gap-3 p-4">
               <div className="flex flex-col gap-1">
@@ -247,11 +304,12 @@ const DetailsEditModal = ({ itemId, isOpen, onClose, onSave }) => {
                     type="text"
                     value={formValues.display_name}
                     onChange={handleFieldChange("display_name")}
+                    disabled={isSaving}
                     className="w-full text-sm rounded-md border border-Card_border bg-Input_bg/40 px-2 py-1.5 text-Primary outline-none focus:border-Primary/50"
                   />
                 ) : (
                   <span className="text-sm text-Primary">
-                    {detail.display_name || "—"}
+                    {item.display_name || item.name || "—"}
                   </span>
                 )}
               </div>
@@ -264,33 +322,60 @@ const DetailsEditModal = ({ itemId, isOpen, onClose, onSave }) => {
                     dir="ltr"
                     value={formValues.code}
                     onChange={handleFieldChange("code")}
+                    disabled={isSaving}
                     className="w-full text-sm font-mono rounded-md border border-Card_border bg-Input_bg/40 px-2 py-1.5 text-Primary outline-none focus:border-Primary/50 text-left"
                   />
                 ) : (
                   <span className="text-sm font-mono text-Primary" dir="ltr">
-                    {detail.code || "—"}
+                    {item.code || "—"}
+                  </span>
+                )}
+              </div>
+
+              <div className="flex flex-col gap-1">
+                <span className="text-[11px] text-Muted">وضعیت</span>
+                {isEditing ? (
+                  <label className="flex items-center gap-2 cursor-pointer w-fit">
+                    <input
+                      type="checkbox"
+                      checked={formValues.is_active}
+                      onChange={handleActiveToggle}
+                      disabled={isSaving}
+                      className="w-4 h-4 rounded border-Card_border text-Secondary focus:ring-Secondary focus:ring-offset-0 cursor-pointer"
+                    />
+                    <span className="text-sm text-Primary">
+                      {formValues.is_active ? "فعال" : "غیرفعال"}
+                    </span>
+                  </label>
+                ) : (
+                  <span className={`text-[10px] w-fit px-2 py-0.5 rounded-full ${
+                    item.is_active !== false
+                      ? 'bg-green-100 text-green-700'
+                      : 'bg-red-100 text-red-700'
+                  }`}>
+                    {item.is_active !== false ? 'فعال' : 'غیرفعال'}
                   </span>
                 )}
               </div>
 
               <div className="flex flex-col gap-1">
                 <span className="text-[11px] text-Muted">تاریخ ایجاد</span>
-                <span className="text-sm text-Muted" dir="ltr">
-                  {detail.created_at || "—"}
+                <span className="text-sm text-Muted" >
+                  {item.created_at || "—"}
                 </span>
               </div>
 
               <div className="flex flex-col gap-1">
                 <span className="text-[11px] text-Muted">ایجادکننده</span>
                 <span className="text-sm text-Muted">
-                  {detail.created_by || "—"}
+                  {item.created_by || "—"}
                 </span>
               </div>
 
               <div className="flex flex-col gap-1">
                 <span className="text-[11px] text-Muted">به‌روزرسانی‌کننده</span>
                 <span className="text-sm text-Muted">
-                  {detail.updated_by || "—"}
+                  {item.updated_by || "—"}
                 </span>
               </div>
             </div>
@@ -299,50 +384,62 @@ const DetailsEditModal = ({ itemId, isOpen, onClose, onSave }) => {
               {saveError && (
                 <span className="text-xs text-red-500 text-center">
                   <i className="fa-solid fa-triangle-exclamation ml-1" />
-                  {saveError}
+                  {extractErrorMessage(saveError)}
                 </span>
               )}
               <div className="flex items-center justify-end gap-2">
-              {isEditing ? (
-                <>
+                {isEditing ? (
+                  <>
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setIsEditing(false);
+                        setFormValues({
+                          display_name: item.display_name || item.name || "",
+                          code: item.code || "",
+                          is_active: item.is_active !== false,
+                          updated_at: item.updated_at || "",
+                        });
+                      }}
+                      disabled={isSaving}
+                      className="text-xs rounded-md border border-Card_border px-3 py-1.5 text-Muted hover:bg-Input_bg transition-colors disabled:opacity-50"
+                    >
+                      انصراف
+                    </button>
+                    <button
+                      type="button"
+                      onClick={handleSaveClick}
+                      disabled={isSaving}
+                      className="text-xs rounded-md bg-slate-600 px-3 py-1.5 text-white hover:opacity-90 transition-opacity disabled:opacity-50"
+                    >
+                      {isSaving ? (
+                        <>
+                          <i className="fa-solid fa-spinner fa-spin ml-1" />
+                          در حال ذخیره...
+                        </>
+                      ) : (
+                        "ذخیره"
+                      )}
+                    </button>
+                  </>
+                ) : (
                   <button
                     type="button"
-                    onClick={() => setIsEditing(false)}
-                    disabled={isSaving}
-                    className="text-xs rounded-md border border-Card_border px-3 py-1.5 text-Muted hover:bg-Input_bg transition-colors disabled:opacity-50"
+                    onClick={() => setIsEditing(true)}
+                    className="text-xs rounded-md border border-Card_border px-3 py-1.5 text-Primary hover:bg-Input_bg transition-colors"
                   >
-                    انصراف
+                    <i className="fa-solid fa-pen ml-1" />
+                    ویرایش
                   </button>
-                  <button
-                    type="button"
-                    onClick={handleSaveClick}
-                    disabled={isSaving}
-                    className="text-xs rounded-md bg-slate-600 px-3 py-1.5 text-white hover:opacity-90 transition-opacity disabled:opacity-50"
-                  >
-                    {isSaving ? (
-                      <>
-                        <i className="fa-solid fa-spinner fa-spin ml-1" />
-                        در حال ذخیره...
-                      </>
-                    ) : (
-                      "ذخیره"
-                    )}
-                  </button>
-                </>
-              ) : (
-                <button
-                  type="button"
-                  onClick={() => setIsEditing(true)}
-                  className="text-xs rounded-md border border-Card_border px-3 py-1.5 text-Primary hover:bg-Input_bg transition-colors"
-                >
-                  <i className="fa-solid fa-pen ml-1" />
-                  ویرایش
-                </button>
-              )}
+                )}
               </div>
             </div>
           </>
-        ) : null}
+        ) : (
+          <div className="flex items-center justify-center h-[180px] px-4 text-center">
+            <span className="text-sm text-Muted">رنگی یافت نشد</span>
+          </div>
+        )}
       </div>
     </div>
   );
@@ -350,7 +447,8 @@ const DetailsEditModal = ({ itemId, isOpen, onClose, onSave }) => {
   return createPortal(modalContent, document.body);
 };
 
-const AddServiceModal = ({ onClose, onSuccess }) => {
+// ======== مودال افزودن رنگ جدید ========
+const AddPaintModal = ({ onClose, onSuccess }) => {
   const dispatch = useDispatch();
 
   const [submitting, setSubmitting] = useState(false);
@@ -387,7 +485,7 @@ const AddServiceModal = ({ onClose, onSuccess }) => {
     );
 
     if (validRows.length === 0) {
-      setError("لطفاً حداقل یک خدمت با نام و کد معتبر وارد کنید");
+      setError("لطفاً حداقل یک رنگ با نام و کد معتبر وارد کنید");
       return;
     }
 
@@ -398,7 +496,7 @@ const AddServiceModal = ({ onClose, onSuccess }) => {
       await Promise.all(
         validRows.map((row) =>
           dispatch(
-            createServiceThunk({
+            createPaintThunk({
               display_name: row.display_name.trim(),
               code: row.code.trim(),
             })
@@ -408,7 +506,7 @@ const AddServiceModal = ({ onClose, onSuccess }) => {
       onSuccess?.();
       onClose();
     } catch (err) {
-      setError(err?.fa || err?.message?.fa || "خطا در ساخت خدمت جدید");
+      setError(extractErrorMessage(err));
     } finally {
       setSubmitting(false);
     }
@@ -426,7 +524,7 @@ const AddServiceModal = ({ onClose, onSuccess }) => {
           className="bg-Background border border-Card_border rounded-xl p-6 max-w-2xl w-full max-h-[80vh] flex flex-col overflow-hidden relative"
           onClick={(e) => e.stopPropagation()}
         >
-          <h4 className="text-sm font-medium text-Primary mb-4 flex-shrink-0">افزودن خدمت جدید</h4>
+          <h4 className="text-sm font-medium text-Primary mb-4 flex-shrink-0">افزودن رنگ جدید</h4>
 
           <form onSubmit={handleSubmit} className="flex-1 flex flex-col min-h-0 overflow-hidden">
             <div className="flex-1 overflow-y-auto space-y-4 pr-1 thin-scrollbar">
@@ -436,7 +534,7 @@ const AddServiceModal = ({ onClose, onSuccess }) => {
                   className="flex flex-col gap-2 border border-Card_border rounded-lg p-3"
                 >
                   <div className="flex items-center justify-between">
-                    <span className="text-[11px] text-Muted">خدمت {index + 1}</span>
+                    <span className="text-[11px] text-Muted">رنگ {index + 1}</span>
                     {rows.length > 1 && (
                       <button
                         type="button"
@@ -488,7 +586,7 @@ const AddServiceModal = ({ onClose, onSuccess }) => {
                 className="w-full h-10 rounded-lg border border-dashed border-Secondary text-Secondary text-sm font-medium hover:bg-Secondary/5 transition-colors disabled:opacity-40"
               >
                 <i className="fa-solid fa-plus text-xs ml-1.5" />
-                افزودن خدمت جدید
+                افزودن رنگ جدید
               </button>
 
               {error && <p className="text-xs text-red-500">{error}</p>}
@@ -518,12 +616,13 @@ const AddServiceModal = ({ onClose, onSuccess }) => {
   );
 };
 
+// ======== کامپوننت کارت موبایل ========
 const MobileRowCard = ({ item, index, onEditClick }) => {
   return (
     <div className="rounded-lg border border-Card_border bg-Input_bg/40 p-3 flex flex-col gap-2" dir="rtl">
       <div className="flex items-center justify-between gap-2">
         <span className="text-sm text-Primary font-medium truncate">
-          {item.display_name || "—"}
+          {item.display_name || item.name || "—"}
         </span>
         <div className="flex items-center gap-2 flex-shrink-0">
           <span className="text-[11px] text-Muted">
@@ -564,6 +663,7 @@ const MobileRowCard = ({ item, index, onEditClick }) => {
   );
 };
 
+// ======== نوار فیلترها ========
 const FiltersBar = ({ filters, onChange, onReset }) => {
   const handleField = (key) => (e) => {
     const value = e.target.value;
@@ -572,16 +672,6 @@ const FiltersBar = ({ filters, onChange, onReset }) => {
 
   const handleSingleDate = (key) => (dateObject) => {
     onChange({ ...filters, [key]: formatDate(dateObject), offset: 0 });
-  };
-
-  const handleRangeDate = (dateObjects) => {
-    if (!dateObjects || dateObjects.length < 2) {
-      onChange({ ...filters, created_at__range: "", offset: 0 });
-      return;
-    }
-    const [start, end] = dateObjects;
-    const rangeValue = `${formatDate(start)},${formatDate(end)}`;
-    onChange({ ...filters, created_at__range: rangeValue, offset: 0 });
   };
 
   return (
@@ -593,7 +683,7 @@ const FiltersBar = ({ filters, onChange, onReset }) => {
             type="text"
             value={filters.search}
             onChange={handleField("search")}
-            placeholder="جستجو..."
+            placeholder="جستجوی رنگ..."
             className="w-full text-xs rounded-md border border-Card_border bg-Background pr-7 pl-2 py-1.5 text-Primary outline-none focus:border-Primary/50"
           />
         </div>
@@ -677,6 +767,7 @@ const FiltersBar = ({ filters, onChange, onReset }) => {
   );
 };
 
+// ======== نوار صفحه‌بندی ========
 const PaginationBar = ({ filters, onChange, totalCount }) => {
   const { limit, offset } = filters;
   const currentPage = Math.floor(offset / limit) + 1;
@@ -735,9 +826,10 @@ const PaginationBar = ({ filters, onChange, totalCount }) => {
   );
 };
 
-const Production = () => {
+// ======== کامپوننت اصلی ========
+const Paint = () => {
   const dispatch = useDispatch();
-  const { data, loading, error, count } = useSelector((state) => state.servicesList);
+  const { paints, loading, error, total } = useSelector((state) => state.paintsList);
 
   const [searchParams, setSearchParams] = useSearchParams();
 
@@ -754,18 +846,17 @@ const Production = () => {
   const params = useMemo(() => buildParams(debouncedFilters), [debouncedFilters]);
 
   useEffect(() => {
-    dispatch(getServicesList(params));
-    // eslint-disable-next-line react-hooks/exhaustive-deps
+    dispatch(getPaintsListThunk(params));
   }, [dispatch, JSON.stringify(params)]);
 
   useEffect(() => {
     const nextParams = filtersToSearchParams(debouncedFilters);
     setSearchParams(nextParams, { replace: true });
-    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [JSON.stringify(debouncedFilters)]);
 
   const handleReset = () => setFilters(DEFAULT_FILTERS);
 
+  // فقط آیدی نگه داشته میشه؛ خود مودال جزئیات کامل رو از API جدا می‌گیره
   const [selectedItemId, setSelectedItemId] = useState(null);
   const [isModalOpen, setIsModalOpen] = useState(false);
 
@@ -779,20 +870,15 @@ const Production = () => {
     setSelectedItemId(null);
   };
 
-  const handleSaveEdit = async (id, formValues) => {
-    await dispatch(
-      updateService({
-        id,
-        display_name: formValues.display_name,
-        code: formValues.code,
-      })
-    ).unwrap();
+  const [showAddPaintModal, setShowAddPaintModal] = useState(false);
 
-    dispatch(getServiceDetail(id));
-    dispatch(getServicesList(params));
+  // نمایش خطا از سرور
+  const getErrorMessage = (err) => {
+    if (typeof err === 'string') return err;
+    if (err?.message?.fa) return err.message.fa;
+    if (err?.fa) return err.fa;
+    return 'خطا در دریافت اطلاعات';
   };
-
-  const [showAddServiceModal, setShowAddServiceModal] = useState(false);
 
   return (
     <>
@@ -800,20 +886,28 @@ const Production = () => {
 
       <div className="w-full px-2 sm:px-4">
         <div className="bg-Background border border-Card_border rounded-xl overflow-hidden">
+          {/* هدر */}
           <div className="flex items-center justify-between gap-2 px-3 pt-3">
-            <h3 className="text-sm font-medium text-Primary">لیست خدمات</h3>
-            <button
-              type="button"
-              onClick={() => setShowAddServiceModal(true)}
-              className="flex items-center gap-1.5 px-3 py-1.5 bg-Secondary text-white text-xs font-medium rounded-lg hover:bg-Secondary/90 transition-colors"
-            >
-              <i className="fas fa-plus text-[10px]" />
-              افزودن خدمت جدید
-            </button>
+            <h3 className="text-sm font-medium text-Primary">لیست رنگ‌ها</h3>
+            <div className="flex items-center gap-2">
+              <button
+                type="button"
+                onClick={() => setShowAddPaintModal(true)}
+                className="flex items-center gap-1.5 px-3 py-1.5 bg-Secondary text-white text-xs font-medium rounded-lg hover:bg-Secondary/90 transition-colors"
+              >
+                <i className="fas fa-plus text-[10px]" />
+                افزودن رنگ جدید
+              </button>
+              <span className="text-xs text-Muted bg-Input_bg px-2 py-0.5 rounded-full flex-shrink-0">
+                {total?.toLocaleString('fa-IR') || 0} مورد
+              </span>
+            </div>
           </div>
 
+          {/* فیلترها */}
           <FiltersBar filters={filters} onChange={setFilters} onReset={handleReset} />
 
+          {/* لودینگ */}
           {loading ? (
             <div className="flex items-center justify-center h-[150px]">
               <span className="text-sm text-Muted">
@@ -825,13 +919,21 @@ const Production = () => {
             <div className="flex items-center justify-center h-[150px]">
               <span className="text-sm text-red-500">
                 <i className="fa-solid fa-triangle-exclamation ml-1" />
-                خطا در دریافت اطلاعات
+                {getErrorMessage(error)}
+              </span>
+            </div>
+          ) : paints.length === 0 ? (
+            <div className="flex items-center justify-center h-[150px]">
+              <span className="text-sm text-Muted">
+                <i className="fa-solid fa-inbox ml-1" />
+                هیچ رنگی یافت نشد.
               </span>
             </div>
           ) : (
             <>
+              {/* کارت‌های موبایل */}
               <div className="flex flex-col gap-2 p-2 sm:hidden">
-                {(data || []).map((item, index) => (
+                {paints.map((item, index) => (
                   <MobileRowCard
                     key={item.id}
                     item={item}
@@ -841,6 +943,7 @@ const Production = () => {
                 ))}
               </div>
 
+              {/* جدول دسکتاپ */}
               <div className="hidden sm:block thin-scrollbar">
                 <table className="w-full text-xs table-fixed">
                   <colgroup>
@@ -848,27 +951,27 @@ const Production = () => {
                     <col className="w-[30%]" />
                     <col className="w-[18%]" />
                     <col className="w-[22%]" />
-                    <col className="w-[20%]" />
+                    <col className="w-[15%]" />
                     <col className="w-10" />
                   </colgroup>
                   <thead>
                     <tr className="border-b border-Card_border bg-Input_bg">
-                      <th className="px-2 py-2  text-center font-medium text-Muted">#</th>
-                      <th className="px-2 py-2  text-center font-medium text-Muted truncate">نام</th>
-                      <th className="px-2 py-2  text-center font-medium text-Muted truncate">کد</th>
-                      <th className="px-2 py-2  text-center font-medium text-Muted truncate">تاریخ ایجاد</th>
-                      <th className="px-2 py-2  text-center font-medium text-Muted truncate">ایجادکننده</th>
-                      <th className="px-2 py-2  text-center font-medium text-Muted">ویرایش</th>
+                      <th className="px-2 py-2 text-center font-medium text-Muted">#</th>
+                      <th className="px-2 py-2 text-center font-medium text-Muted truncate">نام</th>
+                      <th className="px-2 py-2 text-center font-medium text-Muted truncate">کد</th>
+                      <th className="px-2 py-2 text-center font-medium text-Muted truncate">تاریخ ایجاد</th>
+                      <th className="px-2 py-2 text-center font-medium text-Muted truncate">وضعیت</th>
+                      <th className="px-2 py-2 text-center font-medium text-Muted">ویرایش</th>
                     </tr>
                   </thead>
                   <tbody className="divide-y divide-Card_border">
-                    {(data || []).map((item, index) => (
+                    {paints.map((item, index) => (
                       <tr key={item.id} className="hover:bg-Input_bg transition-colors">
                         <td className="px-2 py-2 text-center text-Muted">
                           {(index + 1).toLocaleString("fa-IR")}
                         </td>
-                        <td className="px-2 py-2 text-center text-Primary font-medium truncate" title={item.display_name || ""}>
-                          {item.display_name || "—"}
+                        <td className="px-2 py-2 text-center text-Primary font-medium truncate" title={item.display_name || item.name || ""}>
+                          {item.display_name || item.name || "—"}
                         </td>
                         <td className="px-2 py-2 text-Primary text-center font-mono truncate" dir="ltr" title={item.code || ""}>
                           {item.code || "—"}
@@ -876,8 +979,14 @@ const Production = () => {
                         <td className="px-2 py-2 text-Muted text-center truncate flex-row-reverse" title={item.created_at || ""}>
                           {item.created_at || "—"}
                         </td>
-                        <td className="px-2 py-2 text-Muted text-center truncate" title={item.created_by || ""}>
-                          {item.created_by || "—"}
+                        <td className="px-2 py-2 text-center">
+                          <span className={`text-[10px] px-2 py-0.5 rounded-full ${
+                            item.is_active !== false
+                              ? 'bg-green-100 text-green-700'
+                              : 'bg-red-100 text-red-700'
+                          }`}>
+                            {item.is_active !== false ? 'فعال' : 'غیرفعال'}
+                          </span>
                         </td>
                         <td className="px-2 py-2 text-center">
                           <button
@@ -895,27 +1004,30 @@ const Production = () => {
                 </table>
               </div>
 
-              <PaginationBar filters={filters} onChange={setFilters} totalCount={count} />
+              {/* صفحه‌بندی */}
+              <PaginationBar filters={filters} onChange={setFilters} totalCount={total} />
             </>
           )}
         </div>
       </div>
 
+      {/* مودال جزئیات و ویرایش */}
       <DetailsEditModal
         itemId={selectedItemId}
         isOpen={isModalOpen}
         onClose={handleCloseModal}
-        onSave={handleSaveEdit}
+        onSaved={() => dispatch(getPaintsListThunk(params))}
       />
 
-      {showAddServiceModal && (
-        <AddServiceModal
-          onClose={() => setShowAddServiceModal(false)}
-          onSuccess={() => dispatch(getServicesList(params))}
+      {/* مودال افزودن رنگ جدید */}
+      {showAddPaintModal && (
+        <AddPaintModal
+          onClose={() => setShowAddPaintModal(false)}
+          onSuccess={() => dispatch(getPaintsListThunk(params))}
         />
       )}
     </>
   );
 };
 
-export default Production;
+export default Paint;

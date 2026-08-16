@@ -11,6 +11,9 @@ import Users from "../pages/users/Users";
 import EditUserPage from "../pages/users/Edituserpage";
 import PositionsAndUsersPage from "../pages/users/PositionsAndUsersPage";
 import Production from "../pages/production/Production";
+import Paint from "../pages/production/Paint";
+import Devices from "../pages/production/Device";
+import Device from "../pages/production/Device";
 
 export const router = createBrowserRouter([
   {
@@ -58,8 +61,16 @@ export const router = createBrowserRouter([
             element: <PositionsAndUsersPage />,
           },
           {
-            path: "/productionpage",
+            path: "/productionpage/services",
             element: <Production/>,
+          },
+          {
+            path: "/productionpage/paint",
+            element: <Paint/>,
+          },
+          {
+            path: "/productionpage/device",
+            element: <Device/>,
           },
           {
             path: "*",
