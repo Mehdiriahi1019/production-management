@@ -1,14 +1,36 @@
-// pages/Devices.jsx
+// pages/Sheets.jsx
 import React, { useEffect, useState, useMemo, useRef } from 'react';
 import { createPortal } from 'react-dom';
 import { useDispatch, useSelector } from 'react-redux';
 import { useSearchParams } from 'react-router-dom';
-import { getDevicesListThunk } from '../../features/production/devices/devicesthunk';
-import { clearDevicesError } from '../../features/production/devices/devicesslice';
-import { getDeviceDetailThunk } from '../../features/production/devices/deviceditail/deviceditailthunk';
-import { clearDeviceDetail } from '../../features/production/devices/deviceditail/deviceditailslice';
-import { updateDeviceThunk } from '../../features/production/devices/deviceupdate/DeviceUpdateThunk';
-import { createDeviceThunk } from '../../features/production/devices/devicecreate/deviccreatethunk';
+import * as DatePickerModule from "react-multi-date-picker";
+import * as persianModule from "react-date-object/calendars/persian";
+import * as persian_faModule from "react-date-object/locales/persian_fa";
+import "react-multi-date-picker/styles/layouts/mobile.css";
+import { getSheetsListThunk } from '../../features/production/sheets/sheetslist/sheetslistthunk';
+import { createSheetThunk } from '../../features/production/sheets/sheetscreate/sheetscreatethunk';
+import { getSheetsDitailThunk } from '../../features/production/sheets/sheetsditail/sheetsditailthunk';
+import { clearSheetsDitail } from '../../features/production/sheets/sheetsditail/sheetsditailslice';
+import { updateSheetThunk } from '../../features/production/sheets/sheetsupdate/sheetsupdatethunk';
+
+const unwrapModule = (mod) => {
+  let current = mod;
+  let guard = 0;
+  while (
+    current &&
+    typeof current !== "function" &&
+    current.default &&
+    guard < 5
+  ) {
+    current = current.default;
+    guard += 1;
+  }
+  return current;
+};
+
+const DatePicker = unwrapModule(DatePickerModule);
+const persian = persianModule.default || persianModule;
+const persian_fa = persian_faModule.default || persian_faModule;
 
 const scrollbarStyles = `
   .thin-scrollbar::-webkit-scrollbar {
@@ -29,6 +51,14 @@ const scrollbarStyles = `
     scrollbar-width: thin;
     scrollbar-color: #c4c4c4 transparent;
   }
+  .rmdp-input-filter {
+    width: 100% !important;
+    font-size: 11px !important;
+    border-radius: 6px !important;
+    border: 1px solid #e2e2e2 !important;
+    padding: 6px 8px !important;
+    outline: none !important;
+  }
 `;
 
 const DEFAULT_FILTERS = {
@@ -37,6 +67,7 @@ const DEFAULT_FILTERS = {
   created_at: "",
   created_at__gte: "",
   created_at__lte: "",
+  created_at__range: "",
   ordering: "",
   limit: 20,
   offset: 0,
@@ -76,6 +107,17 @@ const ORDERING_OPTIONS = [
   { value: "-updated_at", label: "آخرین به‌روزرسانی (نزولی)" },
 ];
 
+const DATE_FORMAT = "YYYY-MM-DD";
+
+const formatDate = (dateObject) => {
+  if (!dateObject) return "";
+  try {
+    return dateObject.format(DATE_FORMAT);
+  } catch {
+    return "";
+  }
+};
+
 const buildParams = (filters) => {
   const params = {};
   Object.entries(filters).forEach(([key, value]) => {
@@ -86,7 +128,7 @@ const buildParams = (filters) => {
   return params;
 };
 
-// ======== تابع استخراج پیام خطا دقیقاً از سرور ========
+// ======== تابع استخراج پیام خطا ========
 const extractErrorMessage = (err) => {
   if (!err) return "خطایی رخ داد";
   if (typeof err === "string") return err;
@@ -105,212 +147,47 @@ const extractErrorMessage = (err) => {
   return "خطایی رخ داد";
 };
 
-// ======== مودال افزودن دستگاه جدید ========
-const AddDeviceModal = ({ onClose, onSuccess }) => {
-  const dispatch = useDispatch();
-
-  const [submitting, setSubmitting] = useState(false);
-  const [error, setError] = useState(null);
-
-  const rowIdCounter = useRef(1);
-  const [rows, setRows] = useState([
-    { rowId: 0, display_name: "", code: "" },
-  ]);
-
-  const updateRow = (rowId, changes) => {
-    setRows((prev) =>
-      prev.map((row) => (row.rowId === rowId ? { ...row, ...changes } : row))
-    );
-  };
-
-  const handleAddRow = () => {
-    rowIdCounter.current += 1;
-    setRows((prev) => [
-      ...prev,
-      { rowId: rowIdCounter.current, display_name: "", code: "" },
-    ]);
-  };
-
-  const handleRemoveRow = (rowId) => {
-    setRows((prev) => (prev.length > 1 ? prev.filter((r) => r.rowId !== rowId) : prev));
-  };
-
-  const handleSubmit = async (e) => {
-    e.preventDefault();
-
-    const validRows = rows.filter(
-      (r) => r.display_name.trim() && r.code.trim()
-    );
-
-    if (validRows.length === 0) {
-      setError("لطفاً حداقل یک دستگاه با نام و کد معتبر وارد کنید");
-      return;
-    }
-
-    setSubmitting(true);
-    setError(null);
-
-    try {
-      await Promise.all(
-        validRows.map((row) =>
-          dispatch(
-            createDeviceThunk({
-              display_name: row.display_name.trim(),
-              code: row.code.trim(),
-            })
-          ).unwrap()
-        )
-      );
-      onSuccess?.();
-      onClose();
-    } catch (err) {
-      setError(extractErrorMessage(err));
-    } finally {
-      setSubmitting(false);
-    }
-  };
-
-  return (
-    <>
-      <style>{scrollbarStyles}</style>
-
-      <div
-        className="fixed inset-0 bg-black/30 flex items-center justify-center z-50 px-4"
-        onClick={onClose}
-      >
-        <div
-          className="bg-Background border border-Card_border rounded-xl p-6 max-w-2xl w-full max-h-[80vh] flex flex-col overflow-hidden relative"
-          onClick={(e) => e.stopPropagation()}
-        >
-          <h4 className="text-sm font-medium text-Primary mb-4 flex-shrink-0">افزودن دستگاه جدید</h4>
-
-          <form onSubmit={handleSubmit} className="flex-1 flex flex-col min-h-0 overflow-hidden">
-            <div className="flex-1 overflow-y-auto space-y-4 pr-1 thin-scrollbar">
-              {rows.map((row, index) => (
-                <div
-                  key={row.rowId}
-                  className="flex flex-col gap-2 border border-Card_border rounded-lg p-3"
-                >
-                  <div className="flex items-center justify-between">
-                    <span className="text-[11px] text-Muted">دستگاه {index + 1}</span>
-                    {rows.length > 1 && (
-                      <button
-                        type="button"
-                        onClick={() => handleRemoveRow(row.rowId)}
-                        disabled={submitting}
-                        className="text-Muted hover:text-red-500 transition-colors"
-                      >
-                        <i className="fa-solid fa-trash-can text-xs" />
-                      </button>
-                    )}
-                  </div>
-
-                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-                    <div className="flex flex-col gap-1.5">
-                      <label className="text-xs text-Muted">نام نمایشی</label>
-                      <input
-                        type="text"
-                        value={row.display_name}
-                        onChange={(e) => updateRow(row.rowId, { display_name: e.target.value })}
-                        disabled={submitting}
-                        placeholder="مثلاً لیزر2"
-                        dir="rtl"
-                        className="bg-Input_bg border border-Card_border rounded-lg px-3 py-2 text-sm text-Primary outline-none focus:ring-1 focus:ring-Secondary placeholder:text-Muted/60"
-                      />
-                    </div>
-
-                    <div className="flex flex-col gap-1.5">
-                      <label className="text-xs text-Muted">کد</label>
-                      <input
-                        type="text"
-                        value={row.code}
-                        onChange={(e) => updateRow(row.rowId, { code: e.target.value })}
-                        disabled={submitting}
-                        placeholder="مثلاً L2"
-                        dir="ltr"
-                        className="bg-Input_bg border border-Card_border rounded-lg px-3 py-2 text-sm text-Primary outline-none focus:ring-1 focus:ring-Secondary placeholder:text-Muted/60"
-                      />
-                    </div>
-                  </div>
-                </div>
-              ))}
-            </div>
-
-            <div className="flex-shrink-0 mt-4 space-y-3">
-              <button
-                type="button"
-                onClick={handleAddRow}
-                disabled={submitting}
-                className="w-full h-10 rounded-lg border border-dashed border-Secondary text-Secondary text-sm font-medium hover:bg-Secondary/5 transition-colors disabled:opacity-40"
-              >
-                <i className="fa-solid fa-plus text-xs ml-1.5" />
-                افزودن دستگاه جدید
-              </button>
-
-              {error && <p className="text-xs text-red-500">{error}</p>}
-
-              <div className="flex items-center gap-2">
-                <button
-                  type="submit"
-                  disabled={submitting}
-                  className="flex-1 h-10 rounded-lg bg-Secondary text-white text-sm font-medium hover:opacity-90 transition-opacity disabled:opacity-50"
-                >
-                  {submitting ? "در حال ارسال..." : "تایید نهایی"}
-                </button>
-                <button
-                  type="button"
-                  onClick={onClose}
-                  disabled={submitting}
-                  className="flex-1 h-10 rounded-lg border border-Card_border text-Primary text-sm font-medium hover:bg-Input_bg transition-colors"
-                >
-                  انصراف
-                </button>
-              </div>
-            </div>
-          </form>
-        </div>
-      </div>
-    </>
-  );
-};
-
 // ======== مودال جزئیات و ویرایش ========
-const DeviceDetailModal = ({ itemId, isOpen, onClose, onSaved }) => {
+const DetailModal = ({ itemId, isOpen, onClose, onSaved }) => {
   const dispatch = useDispatch();
   const {
     data: item,
     loading: detailLoading,
     error: detailError,
-  } = useSelector((state) => state.deviceDetail);
+  } = useSelector((state) => state.sheetsDitail);
 
   const [isEditing, setIsEditing] = useState(false);
-  const [formValues, setFormValues] = useState({});
-
-  // چون اسلایس دیگه saving/saveError نداره، این دو تا محلی مدیریت می‌شن
   const [isSaving, setIsSaving] = useState(false);
   const [saveError, setSaveError] = useState(null);
+  const [formValues, setFormValues] = useState({
+    display_name: "",
+    code: "",
+    is_active: true,
+    updated_at: "",
+  });
 
-  // با باز شدن مودال (یا تغییر آیدی)، جزئیات رو از سرور بگیر
   useEffect(() => {
     if (isOpen && itemId) {
       setIsEditing(false);
       setSaveError(null);
-      dispatch(getDeviceDetailThunk(itemId));
+      dispatch(getSheetsDitailThunk(itemId));
     }
   }, [isOpen, itemId, dispatch]);
 
-  // با بسته شدن مودال، دیتای قبلی رو پاک کن تا دفعه‌ی بعد چشمک نزنه
   useEffect(() => {
     if (!isOpen) {
-      dispatch(clearDeviceDetail());
+      dispatch(clearSheetsDitail());
     }
   }, [isOpen, dispatch]);
 
-  // وقتی جزئیات از سرور رسید، فرم رو دقیقاً با همون آبجکت پر کن
-  // (همه‌ی فیلدها همون‌طور که از سرور اومده نگه داشته می‌شن)
   useEffect(() => {
     if (item) {
-      setFormValues({ ...item });
+      setFormValues({
+        display_name: item.display_name || item.name || "",
+        code: item.code || "",
+        is_active: item.is_active !== false,
+        updated_at: item.updated_at || "",
+      });
     }
   }, [item]);
 
@@ -326,15 +203,6 @@ const DeviceDetailModal = ({ itemId, isOpen, onClose, onSaved }) => {
 
   if (!isOpen) return null;
 
-  const getErrorMessage = (err) => {
-    if (!err) return 'خطا در دریافت جزئیات دستگاه';
-    if (typeof err === 'string') return err;
-    if (err?.fa) return err.fa;
-    if (err?.en) return err.en;
-    if (err?.detail) return err.detail;
-    return 'خطا در دریافت جزئیات دستگاه';
-  };
-
   const handleFieldChange = (key) => (e) => {
     setFormValues((prev) => ({ ...prev, [key]: e.target.value }));
   };
@@ -344,30 +212,30 @@ const DeviceDetailModal = ({ itemId, isOpen, onClose, onSaved }) => {
   };
 
   const handleSaveClick = async () => {
-    if (!itemId || Object.keys(formValues).length === 0) return;
+    if (!itemId) {
+      console.warn("handleSaveClick: itemId خالیه");
+      return;
+    }
 
     setIsSaving(true);
     setSaveError(null);
 
     try {
-      // فقط همین ۴ فیلد دقیق به سرور می‌ره - چیز اضافه‌ای ارسال نمی‌شه
-      // updated_at قابل ادیت نیست، عیناً همون مقداریه که از جزئیات برگشته
       await dispatch(
-        updateDeviceThunk({
+        updateSheetThunk({
           id: itemId,
-          display_name: formValues.display_name ?? formValues.name ?? "",
-          code: formValues.code ?? "",
-          is_active: formValues.is_active !== false,
+          display_name: formValues.display_name,
+          code: formValues.code,
+          is_active: formValues.is_active,
           updated_at: formValues.updated_at,
         })
       ).unwrap();
 
-      // رفرش جزئیات همین مودال تا مقادیر جدید درجا نمایش داده بشن
-      dispatch(getDeviceDetailThunk(itemId));
-
+      dispatch(getSheetsDitailThunk(itemId));
       onSaved?.();
       setIsEditing(false);
     } catch (err) {
+      console.error("خطا در ارسال درخواست ویرایش:", err);
       setSaveError(err);
     } finally {
       setIsSaving(false);
@@ -386,7 +254,7 @@ const DeviceDetailModal = ({ itemId, isOpen, onClose, onSaved }) => {
       >
         <div className="flex items-center justify-between px-4 py-3 border-b border-Card_border">
           <h3 className="text-sm font-medium text-Primary">
-            {isEditing ? "ویرایش دستگاه" : "جزئیات دستگاه"}
+            {isEditing ? "ویرایش ورق" : "جزئیات ورق"}
           </h3>
           <button
             type="button"
@@ -408,18 +276,18 @@ const DeviceDetailModal = ({ itemId, isOpen, onClose, onSaved }) => {
           <div className="flex items-center justify-center h-[180px] px-4 text-center">
             <span className="text-sm text-red-500">
               <i className="fa-solid fa-triangle-exclamation ml-1" />
-              {getErrorMessage(detailError)}
+              {extractErrorMessage(detailError)}
             </span>
           </div>
         ) : item ? (
           <>
             <div className="flex flex-col gap-3 p-4">
               <div className="flex flex-col gap-1">
-                <span className="text-[11px] text-Muted">نام دستگاه</span>
+                <span className="text-[11px] text-Muted">نام</span>
                 {isEditing ? (
                   <input
                     type="text"
-                    value={formValues.display_name ?? formValues.name ?? ""}
+                    value={formValues.display_name}
                     onChange={handleFieldChange("display_name")}
                     disabled={isSaving}
                     className="w-full text-sm rounded-md border border-Card_border bg-Input_bg/40 px-2 py-1.5 text-Primary outline-none focus:border-Primary/50"
@@ -432,12 +300,12 @@ const DeviceDetailModal = ({ itemId, isOpen, onClose, onSaved }) => {
               </div>
 
               <div className="flex flex-col gap-1">
-                <span className="text-[11px] text-Muted">کد دستگاه</span>
+                <span className="text-[11px] text-Muted">کد</span>
                 {isEditing ? (
                   <input
                     type="text"
                     dir="ltr"
-                    value={formValues.code ?? ""}
+                    value={formValues.code}
                     onChange={handleFieldChange("code")}
                     disabled={isSaving}
                     className="w-full text-sm font-mono rounded-md border border-Card_border bg-Input_bg/40 px-2 py-1.5 text-Primary outline-none focus:border-Primary/50 text-left"
@@ -455,13 +323,13 @@ const DeviceDetailModal = ({ itemId, isOpen, onClose, onSaved }) => {
                   <label className="flex items-center gap-2 cursor-pointer w-fit">
                     <input
                       type="checkbox"
-                      checked={formValues.is_active !== false}
+                      checked={formValues.is_active}
                       onChange={handleActiveToggle}
                       disabled={isSaving}
                       className="w-4 h-4 rounded border-Card_border text-Secondary focus:ring-Secondary focus:ring-offset-0 cursor-pointer"
                     />
                     <span className="text-sm text-Primary">
-                      {formValues.is_active !== false ? "فعال" : "غیرفعال"}
+                      {formValues.is_active ? "فعال" : "غیرفعال"}
                     </span>
                   </label>
                 ) : (
@@ -488,13 +356,20 @@ const DeviceDetailModal = ({ itemId, isOpen, onClose, onSaved }) => {
                   {item.created_by || "—"}
                 </span>
               </div>
+
+              <div className="flex flex-col gap-1">
+                <span className="text-[11px] text-Muted">به‌روزرسانی‌کننده</span>
+                <span className="text-sm text-Muted">
+                  {item.updated_by || "—"}
+                </span>
+              </div>
             </div>
 
             <div className="flex flex-col gap-2 px-4 py-3 border-t border-Card_border">
               {saveError && (
                 <span className="text-xs text-red-500 text-center">
                   <i className="fa-solid fa-triangle-exclamation ml-1" />
-                  {getErrorMessage(saveError)}
+                  {extractErrorMessage(saveError)}
                 </span>
               )}
               <div className="flex items-center justify-end gap-2">
@@ -505,7 +380,12 @@ const DeviceDetailModal = ({ itemId, isOpen, onClose, onSaved }) => {
                       onClick={() => {
                         setIsEditing(false);
                         setSaveError(null);
-                        setFormValues({ ...item });
+                        setFormValues({
+                          display_name: item.display_name || item.name || "",
+                          code: item.code || "",
+                          is_active: item.is_active !== false,
+                          updated_at: item.updated_at || "",
+                        });
                       }}
                       disabled={isSaving}
                       className="text-xs rounded-md border border-Card_border px-3 py-1.5 text-Muted hover:bg-Input_bg transition-colors disabled:opacity-50"
@@ -543,7 +423,7 @@ const DeviceDetailModal = ({ itemId, isOpen, onClose, onSaved }) => {
           </>
         ) : (
           <div className="flex items-center justify-center h-[180px] px-4 text-center">
-            <span className="text-sm text-Muted">دستگاهی یافت نشد</span>
+            <span className="text-sm text-Muted">ورقی یافت نشد</span>
           </div>
         )}
       </div>
@@ -551,6 +431,175 @@ const DeviceDetailModal = ({ itemId, isOpen, onClose, onSaved }) => {
   );
 
   return createPortal(modalContent, document.body);
+};
+
+// ======== مودال افزودن ورق جدید ========
+const AddSheetModal = ({ onClose, onSuccess }) => {
+  const dispatch = useDispatch();
+
+  const [submitting, setSubmitting] = useState(false);
+  const [error, setError] = useState(null);
+
+  const rowIdCounter = useRef(1);
+  const [rows, setRows] = useState([
+    { rowId: 0, display_name: "", code: "" },
+  ]);
+
+  const updateRow = (rowId, changes) => {
+    setRows((prev) =>
+      prev.map((row) => (row.rowId === rowId ? { ...row, ...changes } : row))
+    );
+  };
+
+  const handleAddRow = () => {
+    rowIdCounter.current += 1;
+    setRows((prev) => [
+      ...prev,
+      { rowId: rowIdCounter.current, display_name: "", code: "" },
+    ]);
+  };
+
+  const handleRemoveRow = (rowId) => {
+    setRows((prev) => (prev.length > 1 ? prev.filter((r) => r.rowId !== rowId) : prev));
+  };
+
+  const handleSubmit = async (e) => {
+    e.preventDefault();
+
+    const validRows = rows.filter(
+      (r) => r.display_name.trim() && r.code.trim()
+    );
+
+    if (validRows.length === 0) {
+      setError("لطفاً حداقل یک ورق با نام و کد معتبر وارد کنید");
+      return;
+    }
+
+    setSubmitting(true);
+    setError(null);
+
+    try {
+      await Promise.all(
+        validRows.map((row) =>
+          dispatch(
+            createSheetThunk({
+              display_name: row.display_name.trim(),
+              code: row.code.trim(),
+            })
+          ).unwrap()
+        )
+      );
+      onSuccess?.();
+      onClose();
+    } catch (err) {
+      setError(extractErrorMessage(err));
+    } finally {
+      setSubmitting(false);
+    }
+  };
+
+  return (
+    <>
+      <style>{scrollbarStyles}</style>
+
+      <div
+        className="fixed inset-0 bg-black/30 flex items-center justify-center z-50 px-4"
+        onClick={onClose}
+      >
+        <div
+          className="bg-Background border border-Card_border rounded-xl p-6 max-w-2xl w-full max-h-[80vh] flex flex-col overflow-hidden relative"
+          onClick={(e) => e.stopPropagation()}
+        >
+          <h4 className="text-sm font-medium text-Primary mb-4 flex-shrink-0">افزودن ورق جدید</h4>
+
+          <form onSubmit={handleSubmit} className="flex-1 flex flex-col min-h-0 overflow-hidden">
+            <div className="flex-1 overflow-y-auto space-y-4 pr-1 thin-scrollbar">
+              {rows.map((row, index) => (
+                <div
+                  key={row.rowId}
+                  className="flex flex-col gap-2 border border-Card_border rounded-lg p-3"
+                >
+                  <div className="flex items-center justify-between">
+                    <span className="text-[11px] text-Muted">ورق {index + 1}</span>
+                    {rows.length > 1 && (
+                      <button
+                        type="button"
+                        onClick={() => handleRemoveRow(row.rowId)}
+                        disabled={submitting}
+                        className="text-Muted hover:text-red-500 transition-colors"
+                      >
+                        <i className="fa-solid fa-trash-can text-xs" />
+                      </button>
+                    )}
+                  </div>
+
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                    <div className="flex flex-col gap-1.5">
+                      <label className="text-xs text-Muted">نام نمایشی</label>
+                      <input
+                        type="text"
+                        value={row.display_name}
+                        onChange={(e) => updateRow(row.rowId, { display_name: e.target.value })}
+                        disabled={submitting}
+                        placeholder="مثلاً ورق گالوانیزه"
+                        dir="rtl"
+                        className="bg-Input_bg border border-Card_border rounded-lg px-3 py-2 text-sm text-Primary outline-none focus:ring-1 focus:ring-Secondary placeholder:text-Muted/60"
+                      />
+                    </div>
+
+                    <div className="flex flex-col gap-1.5">
+                      <label className="text-xs text-Muted">کد</label>
+                      <input
+                        type="text"
+                        value={row.code}
+                        onChange={(e) => updateRow(row.rowId, { code: e.target.value })}
+                        disabled={submitting}
+                        placeholder="مثلاً S"
+                        dir="ltr"
+                        className="bg-Input_bg border border-Card_border rounded-lg px-3 py-2 text-sm text-Primary outline-none focus:ring-1 focus:ring-Secondary placeholder:text-Muted/60"
+                      />
+                    </div>
+                  </div>
+                </div>
+              ))}
+            </div>
+
+            <div className="flex-shrink-0 mt-4 space-y-3">
+              <button
+                type="button"
+                onClick={handleAddRow}
+                disabled={submitting}
+                className="w-full h-10 rounded-lg border border-dashed border-Secondary text-Secondary text-sm font-medium hover:bg-Secondary/5 transition-colors disabled:opacity-40"
+              >
+                <i className="fa-solid fa-plus text-xs ml-1.5" />
+                افزودن ورق جدید
+              </button>
+
+              {error && <p className="text-xs text-red-500">{error}</p>}
+
+              <div className="flex items-center gap-2">
+                <button
+                  type="submit"
+                  disabled={submitting}
+                  className="flex-1 h-10 rounded-lg bg-Secondary text-white text-sm font-medium hover:opacity-90 transition-opacity disabled:opacity-50"
+                >
+                  {submitting ? "در حال ارسال..." : "تایید نهایی"}
+                </button>
+                <button
+                  type="button"
+                  onClick={onClose}
+                  disabled={submitting}
+                  className="flex-1 h-10 rounded-lg border border-Card_border text-Primary text-sm font-medium hover:bg-Input_bg transition-colors"
+                >
+                  انصراف
+                </button>
+              </div>
+            </div>
+          </form>
+        </div>
+      </div>
+    </>
+  );
 };
 
 // ======== کامپوننت کارت موبایل ========
@@ -568,17 +617,17 @@ const MobileRowCard = ({ item, index, onEditClick }) => {
           <button
             type="button"
             onClick={() => onEditClick(item.id)}
-            title="ویرایش"
             className="text-Muted hover:text-Primary transition-colors"
+            aria-label="ویرایش"
           >
-            <i className="fa-solid fa-pen text-[11px]" />
+            <i className="fa-solid fa-pen text-xs" />
           </button>
         </div>
       </div>
 
       <div className="grid grid-cols-2 gap-x-2 gap-y-1.5 text-[11px]">
         <div className="flex flex-col gap-0.5 items-start">
-          <span className="text-Muted">کد دستگاه</span>
+          <span className="text-Muted">کد</span>
           <span className="text-Primary font-mono text-right w-full" dir="ltr">
             {item.code || "—"}
           </span>
@@ -607,6 +656,10 @@ const FiltersBar = ({ filters, onChange, onReset }) => {
     onChange({ ...filters, [key]: value, offset: 0 });
   };
 
+  const handleSingleDate = (key) => (dateObject) => {
+    onChange({ ...filters, [key]: formatDate(dateObject), offset: 0 });
+  };
+
   return (
     <div className="flex flex-col gap-2 p-2 border-b border-Card_border bg-Input_bg/30">
       <div className="flex flex-wrap gap-2 items-center">
@@ -616,7 +669,7 @@ const FiltersBar = ({ filters, onChange, onReset }) => {
             type="text"
             value={filters.search}
             onChange={handleField("search")}
-            placeholder="جستجوی دستگاه..."
+            placeholder="جستجوی ورق..."
             className="w-full text-xs rounded-md border border-Card_border bg-Background pr-7 pl-2 py-1.5 text-Primary outline-none focus:border-Primary/50"
           />
         </div>
@@ -651,6 +704,50 @@ const FiltersBar = ({ filters, onChange, onReset }) => {
           <i className="fa-solid fa-rotate-left ml-1" />
           پاک کردن فیلترها
         </button>
+      </div>
+
+      <div className="flex flex-wrap gap-2 items-end">
+        <div className="flex flex-col gap-0.5 w-32">
+          <span className="text-[10px] text-Muted">تاریخ ایجاد</span>
+          <DatePicker
+            calendar={persian}
+            locale={persian_fa}
+            value={filters.created_at}
+            onChange={handleSingleDate("created_at")}
+            inputClass="rmdp-input-filter"
+            containerClassName="w-full"
+            placeholder="1405-05-05"
+            calendarPosition="bottom-right"
+          />
+        </div>
+
+        <div className="flex flex-col gap-0.5 w-32">
+          <span className="text-[10px] text-Muted">از تاریخ</span>
+          <DatePicker
+            calendar={persian}
+            locale={persian_fa}
+            value={filters.created_at__gte}
+            onChange={handleSingleDate("created_at__gte")}
+            inputClass="rmdp-input-filter"
+            containerClassName="w-full"
+            placeholder="1405-05-01"
+            calendarPosition="bottom-right"
+          />
+        </div>
+
+        <div className="flex flex-col gap-0.5 w-32">
+          <span className="text-[10px] text-Muted">تا تاریخ</span>
+          <DatePicker
+            calendar={persian}
+            locale={persian_fa}
+            value={filters.created_at__lte}
+            onChange={handleSingleDate("created_at__lte")}
+            inputClass="rmdp-input-filter"
+            containerClassName="w-full"
+            placeholder="1405-05-16"
+            calendarPosition="bottom-right"
+          />
+        </div>
       </div>
     </div>
   );
@@ -716,9 +813,9 @@ const PaginationBar = ({ filters, onChange, totalCount }) => {
 };
 
 // ======== کامپوننت اصلی ========
-const Devices = () => {
+const Sheets = () => {
   const dispatch = useDispatch();
-  const { devices, loading, error, total } = useSelector((state) => state.devicesList);
+  const { sheets, loading, error, total } = useSelector((state) => state.sheetsList);
 
   const [searchParams, setSearchParams] = useSearchParams();
 
@@ -735,7 +832,7 @@ const Devices = () => {
   const params = useMemo(() => buildParams(debouncedFilters), [debouncedFilters]);
 
   useEffect(() => {
-    dispatch(getDevicesListThunk(params));
+    dispatch(getSheetsListThunk(params));
   }, [dispatch, JSON.stringify(params)]);
 
   useEffect(() => {
@@ -745,7 +842,6 @@ const Devices = () => {
 
   const handleReset = () => setFilters(DEFAULT_FILTERS);
 
-  // فقط آیدی نگه داشته میشه؛ خود مودال جزئیات کامل رو از API جدا می‌گیره
   const [selectedItemId, setSelectedItemId] = useState(null);
   const [isModalOpen, setIsModalOpen] = useState(false);
 
@@ -759,16 +855,12 @@ const Devices = () => {
     setSelectedItemId(null);
   };
 
-  const [showAddDeviceModal, setShowAddDeviceModal] = useState(false);
+  const [showAddSheetModal, setShowAddSheetModal] = useState(false);
 
-  // نمایش خطا از سرور
   const getErrorMessage = (err) => {
-    if (!err) return 'خطا در دریافت اطلاعات';
     if (typeof err === 'string') return err;
-    if (err?.fa) return err.fa;
-    if (err?.en) return err.en;
     if (err?.message?.fa) return err.message.fa;
-    if (err?.message?.en) return err.message.en;
+    if (err?.fa) return err.fa;
     return 'خطا در دریافت اطلاعات';
   };
 
@@ -780,15 +872,15 @@ const Devices = () => {
         <div className="bg-Background border border-Card_border rounded-xl overflow-hidden">
           {/* هدر */}
           <div className="flex items-center justify-between gap-2 px-3 pt-3">
-            <h3 className="text-sm font-medium text-Primary">لیست دستگاه‌ها</h3>
+            <h3 className="text-sm font-medium text-Primary">لیست ورق‌ها</h3>
             <div className="flex items-center gap-2">
               <button
                 type="button"
-                onClick={() => setShowAddDeviceModal(true)}
+                onClick={() => setShowAddSheetModal(true)}
                 className="flex items-center gap-1.5 px-3 py-1.5 bg-Secondary text-white text-xs font-medium rounded-lg hover:bg-Secondary/90 transition-colors"
               >
                 <i className="fas fa-plus text-[10px]" />
-                افزودن دستگاه جدید
+                افزودن ورق جدید
               </button>
               <span className="text-xs text-Muted bg-Input_bg px-2 py-0.5 rounded-full flex-shrink-0">
                 {total?.toLocaleString('fa-IR') || 0} مورد
@@ -814,18 +906,18 @@ const Devices = () => {
                 {getErrorMessage(error)}
               </span>
             </div>
-          ) : devices.length === 0 ? (
+          ) : sheets.length === 0 ? (
             <div className="flex items-center justify-center h-[150px]">
               <span className="text-sm text-Muted">
                 <i className="fa-solid fa-inbox ml-1" />
-                هیچ دستگاهی یافت نشد.
+                هیچ ورقی یافت نشد.
               </span>
             </div>
           ) : (
             <>
               {/* کارت‌های موبایل */}
               <div className="flex flex-col gap-2 p-2 sm:hidden">
-                {devices.map((item, index) => (
+                {sheets.map((item, index) => (
                   <MobileRowCard
                     key={item.id}
                     item={item}
@@ -840,24 +932,26 @@ const Devices = () => {
                 <table className="w-full text-xs table-fixed">
                   <colgroup>
                     <col className="w-8" />
-                    <col className="w-[28%]" />
-                    <col className="w-[16%]" />
-                    <col className="w-[20%]" />
-                    <col className="w-[13%]" />
+                    <col className="w-[26%]" />
+                    <col className="w-[14%]" />
+                    <col className="w-[18%]" />
+                    <col className="w-[14%]" />
+                    <col className="w-[12%]" />
                     <col className="w-8" />
                   </colgroup>
                   <thead>
                     <tr className="border-b border-Card_border bg-Input_bg">
                       <th className="px-2 py-2 text-center font-medium text-Muted">#</th>
-                      <th className="px-2 py-2 text-center font-medium text-Muted truncate">نام دستگاه</th>
-                      <th className="px-2 py-2 text-center font-medium text-Muted truncate">کد دستگاه</th>
+                      <th className="px-2 py-2 text-center font-medium text-Muted truncate">نام</th>
+                      <th className="px-2 py-2 text-center font-medium text-Muted truncate">کد</th>
                       <th className="px-2 py-2 text-center font-medium text-Muted truncate">تاریخ ایجاد</th>
+                      <th className="px-2 py-2 text-center font-medium text-Muted truncate">ایجادکننده</th>
                       <th className="px-2 py-2 text-center font-medium text-Muted truncate">وضعیت</th>
-                      <th className="px-2 py-2 text-center font-medium text-Muted"></th>
+                      <th className="px-2 py-2 text-center font-medium text-Muted">ویرایش</th>
                     </tr>
                   </thead>
                   <tbody className="divide-y divide-Card_border">
-                    {devices.map((item, index) => (
+                    {sheets.map((item, index) => (
                       <tr key={item.id} className="hover:bg-Input_bg transition-colors">
                         <td className="px-2 py-2 text-center text-Muted">
                           {(index + 1).toLocaleString("fa-IR")}
@@ -868,8 +962,11 @@ const Devices = () => {
                         <td className="px-2 py-2 text-Primary text-center font-mono truncate" dir="ltr" title={item.code || ""}>
                           {item.code || "—"}
                         </td>
-                        <td className="px-2 py-2 text-Muted text-center truncate flex-row-reverse" title={item.created_at || ""}>
+                        <td className="px-2 py-2 text-Muted text-center truncate" title={item.created_at || ""}>
                           {item.created_at || "—"}
+                        </td>
+                        <td className="px-2 py-2 text-Muted text-center truncate" title={item.created_by || ""}>
+                          {item.created_by || "—"}
                         </td>
                         <td className="px-2 py-2 text-center">
                           <span className={`text-[10px] px-2 py-0.5 rounded-full ${
@@ -884,10 +981,10 @@ const Devices = () => {
                           <button
                             type="button"
                             onClick={() => handleOpenModal(item.id)}
-                            title="ویرایش"
                             className="text-Muted hover:text-Primary transition-colors"
+                            aria-label="ویرایش"
                           >
-                            <i className="fa-solid fa-pen text-[11px]" />
+                            <i className="fa-solid fa-pen" />
                           </button>
                         </td>
                       </tr>
@@ -903,22 +1000,23 @@ const Devices = () => {
         </div>
       </div>
 
-      <DeviceDetailModal
+      {/* مودال جزئیات و ویرایش */}
+      <DetailModal
         itemId={selectedItemId}
         isOpen={isModalOpen}
         onClose={handleCloseModal}
-        onSaved={() => dispatch(getDevicesListThunk(params))}
+        onSaved={() => dispatch(getSheetsListThunk(params))}
       />
 
-      {/* مودال افزودن دستگاه جدید */}
-      {showAddDeviceModal && (
-        <AddDeviceModal
-          onClose={() => setShowAddDeviceModal(false)}
-          onSuccess={() => dispatch(getDevicesListThunk(params))}
+      {/* مودال افزودن ورق جدید */}
+      {showAddSheetModal && (
+        <AddSheetModal
+          onClose={() => setShowAddSheetModal(false)}
+          onSuccess={() => dispatch(getSheetsListThunk(params))}
         />
       )}
     </>
   );
 };
 
-export default Devices;
+export default Sheets;

@@ -8,9 +8,6 @@ const axiosInstance = axios.create({
   },
 });
 
-// مسیرهایی که هرگز نباید وارد چرخه‌ی «رفرش توکن» بشن.
-// 401 روی این مسیرها یعنی «نام‌کاربری/پسورد اشتباهه» یا «داده‌ی ثبت‌نام نامعتبره»،
-// نه اینکه توکن منقضی شده باشه. پس نباید کاربر رو reload/redirect کنه.
 const AUTH_ENDPOINTS = [
   "/auth/identify/login/",
   "/auth/identify/register/",
@@ -24,9 +21,17 @@ const isAuthEndpoint = (url = "") =>
 axiosInstance.interceptors.request.use(
   (config) => {
     const token = localStorage.getItem("accessToken");
+
     if (token) {
       config.headers.Authorization = `Bearer ${token}`;
     }
+
+    // اگر درخواست FormData باشد،
+    // اجازه می‌دهیم Axios خودش Content-Type را تنظیم کند
+    if (config.data instanceof FormData) {
+      delete config.headers["Content-Type"];
+    }
+
     return config;
   },
   (error) => Promise.reject(error)
@@ -43,27 +48,24 @@ const processQueue = (error, newToken = null) => {
       p.resolve(newToken);
     }
   });
+
   pendingQueue = [];
 };
 
 axiosInstance.interceptors.response.use(
   (response) => response,
+
   async (error) => {
     console.log("❌ خطای اکسیوس:", error.response?.data);
     console.log("❌ کد وضعیت:", error.response?.status);
 
     const originalRequest = error.config;
 
-    // اگه این خطا از خودِ endpoint های auth (لاگین/رجیستر/رفرش) اومده باشه،
-    // اصلاً وارد منطق رفرش توکن نشو. فقط reject کن تا صفحه‌ی مربوطه
-    // (مثلاً LoginPage) خودش پیام خطا رو نمایش بده.
     if (isAuthEndpoint(originalRequest?.url)) {
       return Promise.reject(error);
     }
 
-    // اگر توکن منقضی بود (401) و این درخواست قبلاً retry نشده بود
     if (error.response?.status === 401 && !originalRequest._retry) {
-
       if (isRefreshing) {
         return new Promise((resolve, reject) => {
           pendingQueue.push({ resolve, reject });
@@ -103,7 +105,7 @@ axiosInstance.interceptors.response.use(
 
         console.log("📦 پاسخ رفرش:", response.data);
 
-        // استخراج توکن از response.data.data (بر اساس ساختار پاسخ شما)
+        // استخراج توکن از response.data.data
         const newAccessToken = response.data?.data?.access;
 
         if (!newAccessToken) {
@@ -113,20 +115,27 @@ axiosInstance.interceptors.response.use(
         console.log("✅ توکن جدید دریافت شد:", newAccessToken);
 
         localStorage.setItem("accessToken", newAccessToken);
-        axiosInstance.defaults.headers.common.Authorization = `Bearer ${newAccessToken}`;
-        originalRequest.headers.Authorization = `Bearer ${newAccessToken}`;
+
+        axiosInstance.defaults.headers.common.Authorization =
+          `Bearer ${newAccessToken}`;
+
+        originalRequest.headers.Authorization =
+          `Bearer ${newAccessToken}`;
 
         processQueue(null, newAccessToken);
-        return axiosInstance(originalRequest);
 
+        return axiosInstance(originalRequest);
       } catch (refreshError) {
         console.log("❌ خطا در رفرش توکن:", refreshError);
         console.log("❌ جزئیات خطا:", refreshError.response?.data);
 
         processQueue(refreshError, null);
+
         localStorage.removeItem("accessToken");
         localStorage.removeItem("refreshToken");
+
         window.location.href = "/";
+
         return Promise.reject(refreshError);
       } finally {
         isRefreshing = false;

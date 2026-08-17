@@ -16,6 +16,17 @@ import servicesForSelectReducer from "../features/servicesforselect/ServicesForS
 import paintsListReducer from "../features/production/paints/paintslistslice"
 import paintDetailReducer from "../features/production/paints/paintditail/paintdetailslice";
 import devicesListReducer from "../features/production/devices/devicesslice"
+import deviceDetailReducer from "../features/production/devices/deviceditail/deviceditailslice";
+import sheetsListReducer from '../features/production/sheets/sheetslist/sheetsslice';
+import sheetsDitailReducer from '../features/production/sheets/sheetsditail/sheetsditailslice';
+import sheetsUpdateReducer from '../features/production/sheets/sheetsupdate/sheetsupdateslice';
+import templateReducer from '../features/production/goods/template/templateslice';
+import uploadReducer from '../features/production/goods/uploade/uploadeslice';
+import goodsListReducer from '../features/production/goods/goodslist/goodslistslice';
+
+
+
+
 
 
 
@@ -37,6 +48,13 @@ export const store = configureStore({
     servicesForSelect: servicesForSelectReducer,
     paintsList: paintsListReducer,
     paintDetail: paintDetailReducer,
-    devicesList: devicesListReducer
+    devicesList: devicesListReducer,
+    deviceDetail: deviceDetailReducer,
+    sheetsList: sheetsListReducer,
+    sheetsDitail: sheetsDitailReducer,
+    sheetsUpdate: sheetsUpdateReducer,
+    template: templateReducer,
+    upload: uploadReducer,
+    goodsList: goodsListReducer,
   },
 });

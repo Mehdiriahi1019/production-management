@@ -14,6 +14,8 @@ import Production from "../pages/production/Production";
 import Paint from "../pages/production/Paint";
 import Devices from "../pages/production/Device";
 import Device from "../pages/production/Device";
+import Sheets from "../pages/production/Sheets";
+import Goods from "../pages/production/Goods";
 
 export const router = createBrowserRouter([
   {
@@ -71,6 +73,14 @@ export const router = createBrowserRouter([
           {
             path: "/productionpage/device",
             element: <Device/>,
+          },
+          {
+            path: "/productionpage/sheet",
+            element: <Sheets/>,
+          },
+          {
+            path: "/productionpage/goods",
+            element: <Goods/>,
           },
           {
             path: "*",

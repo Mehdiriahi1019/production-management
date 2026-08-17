@@ -107,13 +107,14 @@ const Layout = () => {
       label: "تولید", 
       icon: "fa-gear",
       subItems: [
+         { path: "/productionpage/reports", label: "گزارشات تولید" , icon:"fa-solid fa-chart-line" },
+        { path: "/productionpage/goods", label: "کالا ها", icon:"fa-solid fa-boxes-stacked" },
         { path: "/productiondata", label: "داده های تولید" ,icon:"fa-database" , subItems: [
         { path: "/productionpage/services", label: "خدمات" , icon:"fa-screwdriver-wrench" },
         { path: "/productionpage/paint", label: "رنگ ها ", icon:"fa-solid fa-palette" },
         { path: "/productionpage/device", label: "دستگاه ها" , icon:"fa-solid fa-gears" },
         { path: "/productionpage/sheet", label: "ورق ها" , icon: "fa-solid fa-layer-group" },
-        { path: "/productionpage/reports", label: "گزارشات تولید" , icon:"fa-solid fa-chart-line" },
-        { path: "/productionpage/goods", label: "کالا ها", icon:"fa-solid fa-boxes-stacked" },
+       
       ], },
       ],
     },
