@@ -1,7 +1,7 @@
 // pages/Goods.jsx
 import React, { useEffect, useState, useMemo } from 'react';
 import { useDispatch, useSelector } from 'react-redux';
-import { useSearchParams } from 'react-router-dom';
+import { useSearchParams, Link } from 'react-router-dom';
 import * as DatePickerModule from "react-multi-date-picker";
 import * as persianModule from "react-date-object/calendars/persian";
 import * as persian_faModule from "react-date-object/locales/persian_fa";
@@ -108,14 +108,19 @@ const buildParams = (filters) => {
     return params;
 };
 
-// ======== کامپوننت کارت موبایل ========
-const MobileCard = ({ item, index }) => {
+const MobileCard = ({ item, index, openTooltipId, setOpenTooltipId }) => {
+    const showTooltip = openTooltipId === item.id;
     const infoTooltip = [
         `تاریخ ایجاد: ${item.created_at || "—"}`,
         `ایجاد شده توسط: ${item.created_by || "—"}`,
         `تاریخ به‌روزرسانی: ${item.updated_at || "—"}`,
         `به‌روزرسانی شده توسط: ${item.updated_by || "—"}`,
     ].join("\n");
+
+    const handleToggleTooltip = (e) => {
+        e.stopPropagation();
+        setOpenTooltipId(showTooltip ? null : item.id);
+    };
 
     return (
         <div className="rounded-lg border border-Card_border bg-Input_bg/40 p-3 flex flex-col gap-2" dir="rtl">
@@ -127,17 +132,36 @@ const MobileCard = ({ item, index }) => {
                     <span className="text-[11px] text-Muted">
                         {(index + 1).toLocaleString("fa-IR")}
                     </span>
-                    <button
-                        type="button"
+                    <Link
+                        to={`/goods/detail/${item.id}`}
                         className="text-Muted hover:text-Primary transition-colors"
                         aria-label="ویرایش"
                     >
                         <i className="fa-solid fa-pen text-xs" />
-                    </button>
-                    <i
-                        className="fa-solid fa-circle-exclamation text-Muted hover:text-Primary transition-colors cursor-help text-xs"
-                        title={infoTooltip}
-                    />
+                    </Link>
+                    <div className="relative" data-tooltip-root>
+                        <i
+                            className="fa-solid fa-circle-exclamation text-Muted hover:text-Primary transition-colors cursor-help text-xs"
+                            onClick={handleToggleTooltip}
+                            onMouseEnter={() => {
+                                if (window.innerWidth > 640) {
+                                    setOpenTooltipId(item.id);
+                                }
+                            }}
+                            onMouseLeave={() => {
+                                if (window.innerWidth > 640) {
+                                    setOpenTooltipId(null);
+                                }
+                            }}
+                        />
+                        {showTooltip && (
+                            <div className="absolute bottom-full left-0 mb-2 bg-Background border border-Card_border text-Primary text-[10px] rounded-lg px-3 py-2 whitespace-pre-line w-48 z-20 shadow-lg">
+                                {infoTooltip}
+                                <div className="absolute top-full left-2 border-4 border-transparent border-t-Card_border" />
+                                <div className="absolute top-full left-2 -mt-[1px] border-[3px] border-transparent border-t-Background" />
+                            </div>
+                        )}
+                    </div>
                 </div>
             </div>
 
@@ -156,11 +180,10 @@ const MobileCard = ({ item, index }) => {
                 </div>
                 <div className="flex flex-col gap-0.5 col-span-2 items-start">
                     <span className="text-Muted">وضعیت</span>
-                    <span className={`text-[10px] px-2 py-0.5 rounded-full ${
-                        item.is_active !== false
-                            ? 'bg-green-100 text-green-700'
-                            : 'bg-red-100 text-red-700'
-                    }`}>
+                    <span className={`text-[10px] px-2 py-0.5 rounded-full ${item.is_active !== false
+                        ? 'bg-green-100 text-green-700'
+                        : 'bg-red-100 text-red-700'
+                        }`}>
                         {item.is_active !== false ? 'فعال' : 'غیرفعال'}
                     </span>
                 </div>
@@ -177,6 +200,7 @@ const Goods = () => {
     const [searchParams, setSearchParams] = useSearchParams();
     const [filters, setFilters] = useState(() => filtersFromSearchParams(searchParams));
     const [debouncedFilters, setDebouncedFilters] = useState(filters);
+    const [openTooltipId, setOpenTooltipId] = useState(null);
 
     useEffect(() => {
         const timer = setTimeout(() => {
@@ -204,6 +228,17 @@ const Goods = () => {
             return () => clearTimeout(timer);
         }
     }, [uploadSuccess, uploadError, dispatch]);
+
+    useEffect(() => {
+        if (openTooltipId === null) return;
+        const handleClickOutside = (e) => {
+            if (!e.target.closest('[data-tooltip-root]')) {
+                setOpenTooltipId(null);
+            }
+        };
+        document.addEventListener('click', handleClickOutside);
+        return () => document.removeEventListener('click', handleClickOutside);
+    }, [openTooltipId]);
 
     const handleReset = () => setFilters(DEFAULT_FILTERS);
 
@@ -270,13 +305,54 @@ const Goods = () => {
         ? currentPage < totalPages
         : goods.length === filters.limit;
 
+    const paginationFooter = (
+        <div className="flex-shrink-0 flex items-center justify-between gap-2 p-2 border-t border-Card_border bg-Background text-xs">
+            <div className="flex items-center gap-2">
+                <span className="text-Muted">تعداد در صفحه:</span>
+                <select
+                    value={filters.limit}
+                    onChange={(e) => setFilters({ ...filters, limit: Number(e.target.value), offset: 0 })}
+                    className="rounded-md border border-Card_border bg-Background px-2 py-1 text-Primary outline-none"
+                >
+                    {[10, 20, 50, 100].map((n) => (
+                        <option key={n} value={n}>
+                            {n.toLocaleString()}
+                        </option>
+                    ))}
+                </select>
+            </div>
+
+            <div className="flex items-center gap-2">
+                <button
+                    type="button"
+                    onClick={() => setFilters({ ...filters, offset: Math.max(0, filters.offset - filters.limit) })}
+                    disabled={filters.offset === 0}
+                    className="rounded-md border border-Card_border px-2 py-1 text-Muted disabled:opacity-40 hover:bg-Input_bg transition-colors"
+                >
+                    قبلی
+                </button>
+                <span className="text-Muted">
+                    صفحه {currentPage}
+                    {totalPages > 0 ? ` از ${totalPages}` : ""}
+                </span>
+                <button
+                    type="button"
+                    onClick={() => setFilters({ ...filters, offset: filters.offset + filters.limit })}
+                    disabled={!hasNextPage}
+                    className="rounded-md border border-Card_border px-2 py-1 text-Muted disabled:opacity-40 hover:bg-Input_bg transition-colors"
+                >
+                    بعدی
+                </button>
+            </div>
+        </div>
+    );
+
     return (
         <>
             <style>{datePickerStyles}</style>
 
             <div className="w-full px-2 sm:px-4">
                 <div className="bg-Background border border-Card_border rounded-xl overflow-hidden">
-                    {/* هدر */}
                     <div className="flex items-center justify-between gap-2 px-3 pt-3 pb-3">
                         <h3 className="text-sm font-medium text-Primary">لیست کالاها</h3>
                         <div className="flex items-center gap-2 flex-wrap">
@@ -324,7 +400,6 @@ const Goods = () => {
                         </div>
                     </div>
 
-                    {/* فیلترها */}
                     <div className="flex flex-col gap-2 p-2 border-b border-Card_border bg-Input_bg/30">
                         <div className="flex flex-wrap gap-2 items-center">
                             <div className="relative flex-1 min-w-[160px]">
@@ -415,7 +490,6 @@ const Goods = () => {
                         </div>
                     </div>
 
-                    {/* نمایش خطاها */}
                     {uploadError && (
                         <div className="px-3 pb-2 pt-2">
                             <span className="text-xs text-red-500">
@@ -433,7 +507,6 @@ const Goods = () => {
                         </div>
                     )}
 
-                    {/* لیست کالاها */}
                     {loading ? (
                         <div className="flex items-center justify-center h-[300px]">
                             <span className="text-sm text-Muted">
@@ -457,127 +530,89 @@ const Goods = () => {
                         </div>
                     ) : (
                         <>
-                            {/* کارت‌های موبایل */}
                             <div className="flex flex-col gap-2 p-2 sm:hidden">
                                 {goods.map((item, index) => (
                                     <MobileCard
                                         key={item.id}
                                         item={item}
                                         index={index}
+                                        openTooltipId={openTooltipId}
+                                        setOpenTooltipId={setOpenTooltipId}
                                     />
                                 ))}
                             </div>
+                            <div className="sm:hidden">
+                                {paginationFooter}
+                            </div>
 
-                            {/* جدول دسکتاپ */}
-                            <div className="hidden sm:block overflow-x-auto">
-                                <table className="w-full text-xs">
-                                    <thead>
-                                        <tr className="border-b border-Card_border bg-Input_bg">
-                                            <th className="px-3 py-2 text-center font-medium text-Muted">#</th>
-                                            <th className="px-3 py-2 text-center font-medium text-Muted">نام</th>
-                                            <th className="px-3 py-2 text-center font-medium text-Muted">کد تکنیکال</th>
-                                            <th className="px-3 py-2 text-center font-medium text-Muted">کد انبار</th>
-                                            <th className="px-3 py-2 text-center font-medium text-Muted">وضعیت</th>
-                                            <th className="px-3 py-2 text-center font-medium text-Muted">ویرایش</th>
-                                        </tr>
-                                    </thead>
-                                    <tbody className="divide-y divide-Card_border">
-                                        {goods.map((item, index) => {
-                                            const infoTooltip = [
-                                                `تاریخ ایجاد: ${item.created_at || "—"}`,
-                                                `ایجاد شده توسط: ${item.created_by || "—"}`,
-                                                `تاریخ به‌روزرسانی: ${item.updated_at || "—"}`,
-                                                `به‌روزرسانی شده توسط: ${item.updated_by || "—"}`,
-                                            ].join("\n");
+                            <div className="hidden sm:flex sm:flex-col">
+                                <div className="overflow-x-auto overflow-y-auto max-h-[380px]">
+                                    <table className="w-full text-xs">
+                                        <thead className="sticky top-0 z-10">
+                                            <tr className="border-b border-Card_border bg-Input_bg">
+                                                <th className="px-3 py-2 text-center font-medium text-Muted">#</th>
+                                                <th className="px-3 py-2 text-center font-medium text-Muted">نام</th>
+                                                <th className="px-3 py-2 text-center font-medium text-Muted">کد تکنیکال</th>
+                                                <th className="px-3 py-2 text-center font-medium text-Muted">کد انبار</th>
+                                                <th className="px-3 py-2 text-center font-medium text-Muted">وضعیت</th>
+                                                <th className="px-3 py-2 text-center font-medium text-Muted">ویرایش</th>
+                                            </tr>
+                                        </thead>
+                                        <tbody className="divide-y divide-Card_border">
+                                            {goods.map((item, index) => {
+                                                const infoTooltip = [
+                                                    `تاریخ ایجاد: ${item.created_at || "—"}`,
+                                                    `ایجاد شده توسط: ${item.created_by || "—"}`,
+                                                    `تاریخ به‌روزرسانی: ${item.updated_at || "—"}`,
+                                                    `به‌روزرسانی شده توسط: ${item.updated_by || "—"}`,
+                                                ].join("\n");
 
-                                            return (
-                                                <tr key={item.id} className="hover:bg-Input_bg/30 transition-colors">
-                                                    <td className="px-3 py-2 text-center text-Muted">
-                                                        {(index + 1).toLocaleString("fa-IR")}
-                                                    </td>
-                                                    <td className="px-3 py-2 text-center text-Primary">
-                                                        {item.display_name || item.name || "—"}
-                                                    </td>
-                                                    <td className="px-3 py-2 text-center text-Primary font-mono" dir="ltr">
-                                                        {item.sn_code || "—"}
-                                                    </td>
-                                                    <td className="px-3 py-2 text-center text-Primary font-mono" dir="ltr">
-                                                        {item.warehouse_code || "—"}
-                                                    </td>
-                                                    <td className="px-3 py-2 text-center">
-                                                        <span className={`text-[10px] px-2 py-0.5 rounded-full ${
-                                                            item.is_active !== false
+                                                return (
+                                                    <tr key={item.id} className="hover:bg-Input_bg/30 transition-colors">
+                                                        <td className="px-3 py-2 text-center text-Muted">
+                                                            {(index + 1).toLocaleString("fa-IR")}
+                                                        </td>
+                                                        <td className="px-3 py-2 text-center text-Primary">
+                                                            {item.display_name || item.name || "—"}
+                                                        </td>
+                                                        <td className="px-3 py-2 text-center text-Primary font-mono" dir="ltr">
+                                                            {item.sn_code || "—"}
+                                                        </td>
+                                                        <td className="px-3 py-2 text-center text-Primary font-mono" dir="ltr">
+                                                            {item.warehouse_code || "—"}
+                                                        </td>
+                                                        <td className="px-3 py-2 text-center">
+                                                            <span className={`text-[10px] px-2 py-0.5 rounded-full ${item.is_active !== false
                                                                 ? 'bg-green-100 text-green-700'
                                                                 : 'bg-red-100 text-red-700'
-                                                        }`}>
-                                                            {item.is_active !== false ? 'فعال' : 'غیرفعال'}
-                                                        </span>
-                                                    </td>
-                                                    <td className="px-3 py-2 text-center">
-                                                        <div className="flex items-center justify-center gap-2">
-                                                            <button
-                                                                type="button"
-                                                                className="text-Muted hover:text-Primary transition-colors"
-                                                                aria-label="ویرایش"
-                                                            >
-                                                                <i className="fa-solid fa-pen" />
-                                                            </button>
-                                                            <i
-                                                                className="fa-solid fa-circle-exclamation text-Muted hover:text-Primary transition-colors cursor-help"
-                                                                title={infoTooltip}
-                                                            />
-                                                        </div>
-                                                    </td>
-                                                </tr>
-                                            );
-                                        })}
-                                    </tbody>
-                                </table>
+                                                                }`}>
+                                                                {item.is_active !== false ? 'فعال' : 'غیرفعال'}
+                                                            </span>
+                                                        </td>
+                                                        <td className="px-3 py-2 text-center">
+                                                            <div className="flex items-center justify-center gap-2">
+                                                                <Link
+                                                                    to={`/productionpage/goods/goodsditail/${item.id}`}
+                                                                    className="text-Muted hover:text-Primary transition-colors"
+                                                                    aria-label="ویرایش"
+                                                                >
+                                                                    <i className="fa-solid fa-pen" />
+                                                                </Link>
+                                                                <i
+                                                                    className="fa-solid fa-circle-exclamation text-Muted hover:text-Primary transition-colors cursor-help"
+                                                                    title={infoTooltip}
+                                                                />
+                                                            </div>
+                                                        </td>
+                                                    </tr>
+                                                );
+                                            })}
+                                        </tbody>
+                                    </table>
+                                </div>
+                                {paginationFooter}
                             </div>
                         </>
-                    )}
-
-                    {/* صفحه‌بندی */}
-                    {goods.length > 0 && (
-                        <div className="flex items-center justify-between gap-2 p-2 border-t border-Card_border text-xs">
-                            <div className="flex items-center gap-2">
-                                <span className="text-Muted">تعداد در صفحه:</span>
-                                <select
-                                    value={filters.limit}
-                                    onChange={(e) => setFilters({ ...filters, limit: Number(e.target.value), offset: 0 })}
-                                    className="rounded-md border border-Card_border bg-Background px-2 py-1 text-Primary outline-none"
-                                >
-                                    {[10, 20, 50, 100].map((n) => (
-                                        <option key={n} value={n}>
-                                            {n.toLocaleString("fa-IR")}
-                                        </option>
-                                    ))}
-                                </select>
-                            </div>
-
-                            <div className="flex items-center gap-2">
-                                <button
-                                    type="button"
-                                    onClick={() => setFilters({ ...filters, offset: Math.max(0, filters.offset - filters.limit) })}
-                                    disabled={filters.offset === 0}
-                                    className="rounded-md border border-Card_border px-2 py-1 text-Muted disabled:opacity-40 hover:bg-Input_bg transition-colors"
-                                >
-                                    قبلی
-                                </button>
-                                <span className="text-Muted">
-                                    صفحه {currentPage}
-                                    {totalPages > 0 ? ` از ${totalPages}` : ""}
-                                </span>
-                                <button
-                                    type="button"
-                                    onClick={() => setFilters({ ...filters, offset: filters.offset + filters.limit })}
-                                    disabled={!hasNextPage}
-                                    className="rounded-md border border-Card_border px-2 py-1 text-Muted disabled:opacity-40 hover:bg-Input_bg transition-colors"
-                                >
-                                    بعدی
-                                </button>
-                            </div>
-                        </div>
                     )}
                 </div>
             </div>

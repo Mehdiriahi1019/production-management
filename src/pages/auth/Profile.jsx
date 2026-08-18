@@ -86,15 +86,32 @@ const Profile = () => {
         return;
       }
 
-      const payload = {
-        email: formValues.email,
-        first_name: formValues.first_name,
-        last_name: formValues.last_name,
-        phone_number: formValues.phone_number,
-      };
+      const payload = {};
+
+      if (formValues.first_name !== profile.first_name) {
+        payload.first_name = formValues.first_name;
+      }
+
+      if (formValues.last_name !== profile.last_name) {
+        payload.last_name = formValues.last_name;
+      }
+
+      if (formValues.email !== profile.email) {
+        payload.email = formValues.email;
+      }
+
+      if (formValues.phone_number !== profile.phone_number) {
+        payload.phone_number = formValues.phone_number;
+      }
 
       if (formValues.password && formValues.password.trim().length > 0) {
         payload.password = formValues.password;
+      }
+
+      if (Object.keys(payload).length === 0) {
+        setSaveError("هیچ تغییری در اطلاعات اعمال نشده است");
+        setIsSaving(false);
+        return;
       }
 
       await editService(payload);
@@ -105,7 +122,7 @@ const Profile = () => {
 
     } catch (error) {
       console.error("خطا در ویرایش پروفایل:", error);
-      
+
       if (error.response?.data) {
         const errorData = error.response.data;
         if (typeof errorData === 'object') {
@@ -229,7 +246,7 @@ const Profile = () => {
                 </div>
               );
             }
-            
+
             return (
               <div key={key} className="flex flex-col gap-1">
                 <label htmlFor={key} className="text-xs text-Muted">
@@ -321,7 +338,6 @@ const Profile = () => {
             </table>
           </div>
 
-          {/* کارت سمت‌ها */}
           {profile.positions && profile.positions.length > 0 && (
             <div className="mt-4 bg-Background border border-Card_border rounded-xl overflow-hidden">
               <div className="px-5 py-3 border-b border-Card_border">

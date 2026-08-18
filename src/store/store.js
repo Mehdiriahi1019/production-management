@@ -23,8 +23,13 @@ import sheetsUpdateReducer from '../features/production/sheets/sheetsupdate/shee
 import templateReducer from '../features/production/goods/template/templateslice';
 import uploadReducer from '../features/production/goods/uploade/uploadeslice';
 import goodsListReducer from '../features/production/goods/goodslist/goodslistslice';
-
-
+import goodsDitailReducer from '../features/production/goods/goodsditail/goodsditailslice';
+import addFileReducer from '../features/production/goods/addfile/addfileslice';
+import deleteFileReducer from '../features/production/goods/deletefile/deletefileslice';
+import updateFileReducer from '../features/production/goods/updatefile/updatefileslice';
+import updateRouteReducer from '../features/production/goods/updateroute/updaterouteslice';
+import serviceSelectReducer from '../features/production/goods/serviceselect/serviceselectslice';
+import deleteRouteReducer from '../features/production/goods/deleteroute/deleterouteslice';
 
 
 
@@ -56,5 +61,12 @@ export const store = configureStore({
     template: templateReducer,
     upload: uploadReducer,
     goodsList: goodsListReducer,
+    goodsDitail: goodsDitailReducer,
+    addFile: addFileReducer,
+    deleteFile: deleteFileReducer,
+    updateFile: updateFileReducer,
+    updateRoute: updateRouteReducer,
+    serviceSelect: serviceSelectReducer,
+    deleteRoute: deleteRouteReducer,
   },
 });

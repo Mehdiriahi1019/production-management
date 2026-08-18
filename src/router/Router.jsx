@@ -16,6 +16,7 @@ import Devices from "../pages/production/Device";
 import Device from "../pages/production/Device";
 import Sheets from "../pages/production/Sheets";
 import Goods from "../pages/production/Goods";
+import GoodsDitail from "../pages/production/goodsditail/GoodsDitail";
 
 export const router = createBrowserRouter([
   {
@@ -82,6 +83,11 @@ export const router = createBrowserRouter([
             path: "/productionpage/goods",
             element: <Goods/>,
           },
+          {
+            path: "/productionpage/goods/goodsditail/:id",
+            element: <GoodsDitail/>,
+          },
+
           {
             path: "*",
             element: <Navigate to="/dashboard" replace />,
