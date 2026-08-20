@@ -3,12 +3,35 @@ import React, { useEffect, useState, useMemo, useRef } from 'react';
 import { createPortal } from 'react-dom';
 import { useDispatch, useSelector } from 'react-redux';
 import { useSearchParams } from 'react-router-dom';
+import * as DatePickerModule from "react-multi-date-picker";
+import * as persianModule from "react-date-object/calendars/persian";
+import * as persian_faModule from "react-date-object/locales/persian_fa";
+import "react-multi-date-picker/styles/layouts/mobile.css";
 import { getDevicesListThunk } from '../../features/production/devices/devicesthunk';
 import { clearDevicesError } from '../../features/production/devices/devicesslice';
 import { getDeviceDetailThunk } from '../../features/production/devices/deviceditail/deviceditailthunk';
 import { clearDeviceDetail } from '../../features/production/devices/deviceditail/deviceditailslice';
 import { updateDeviceThunk } from '../../features/production/devices/deviceupdate/DeviceUpdateThunk';
 import { createDeviceThunk } from '../../features/production/devices/devicecreate/deviccreatethunk';
+
+const unwrapModule = (mod) => {
+  let current = mod;
+  let guard = 0;
+  while (
+    current &&
+    typeof current !== "function" &&
+    current.default &&
+    guard < 5
+  ) {
+    current = current.default;
+    guard += 1;
+  }
+  return current;
+};
+
+const DatePicker = unwrapModule(DatePickerModule);
+const persian = persianModule.default || persianModule;
+const persian_fa = persian_faModule.default || persian_faModule;
 
 const scrollbarStyles = `
   .thin-scrollbar::-webkit-scrollbar {
@@ -29,6 +52,14 @@ const scrollbarStyles = `
     scrollbar-width: thin;
     scrollbar-color: #c4c4c4 transparent;
   }
+  .rmdp-input-filter {
+    width: 100% !important;
+    font-size: 11px !important;
+    border-radius: 6px !important;
+    border: 1px solid #e2e2e2 !important;
+    padding: 6px 8px !important;
+    outline: none !important;
+  }
 `;
 
 const DEFAULT_FILTERS = {
@@ -37,6 +68,7 @@ const DEFAULT_FILTERS = {
   created_at: "",
   created_at__gte: "",
   created_at__lte: "",
+  created_at__range: "",
   ordering: "",
   limit: 20,
   offset: 0,
@@ -75,6 +107,17 @@ const ORDERING_OPTIONS = [
   { value: "updated_at", label: "آخرین به‌روزرسانی (صعودی)" },
   { value: "-updated_at", label: "آخرین به‌روزرسانی (نزولی)" },
 ];
+
+const DATE_FORMAT = "YYYY-MM-DD";
+
+const formatDate = (dateObject) => {
+  if (!dateObject) return "";
+  try {
+    return dateObject.format(DATE_FORMAT);
+  } catch {
+    return "";
+  }
+};
 
 const buildParams = (filters) => {
   const params = {};
@@ -607,6 +650,10 @@ const FiltersBar = ({ filters, onChange, onReset }) => {
     onChange({ ...filters, [key]: value, offset: 0 });
   };
 
+  const handleSingleDate = (key) => (dateObject) => {
+    onChange({ ...filters, [key]: formatDate(dateObject), offset: 0 });
+  };
+
   return (
     <div className="flex flex-col gap-2 p-2 border-b border-Card_border bg-Input_bg/30">
       <div className="flex flex-wrap gap-2 items-center">
@@ -651,6 +698,50 @@ const FiltersBar = ({ filters, onChange, onReset }) => {
           <i className="fa-solid fa-rotate-left ml-1" />
           پاک کردن فیلترها
         </button>
+      </div>
+
+      <div className="flex flex-wrap gap-2 items-end">
+        <div className="flex flex-col gap-0.5 w-32">
+          <span className="text-[10px] text-Muted">تاریخ ایجاد</span>
+          <DatePicker
+            calendar={persian}
+            locale={persian_fa}
+            value={filters.created_at}
+            onChange={handleSingleDate("created_at")}
+            inputClass="rmdp-input-filter"
+            containerClassName="w-full"
+            placeholder="1405-05-05"
+            calendarPosition="bottom-right"
+          />
+        </div>
+
+        <div className="flex flex-col gap-0.5 w-32">
+          <span className="text-[10px] text-Muted">از تاریخ</span>
+          <DatePicker
+            calendar={persian}
+            locale={persian_fa}
+            value={filters.created_at__gte}
+            onChange={handleSingleDate("created_at__gte")}
+            inputClass="rmdp-input-filter"
+            containerClassName="w-full"
+            placeholder="1405-05-01"
+            calendarPosition="bottom-right"
+          />
+        </div>
+
+        <div className="flex flex-col gap-0.5 w-32">
+          <span className="text-[10px] text-Muted">تا تاریخ</span>
+          <DatePicker
+            calendar={persian}
+            locale={persian_fa}
+            value={filters.created_at__lte}
+            onChange={handleSingleDate("created_at__lte")}
+            inputClass="rmdp-input-filter"
+            containerClassName="w-full"
+            placeholder="1405-05-16"
+            calendarPosition="bottom-right"
+          />
+        </div>
       </div>
     </div>
   );

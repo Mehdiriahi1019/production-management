@@ -64,7 +64,7 @@ body {
 /* Light */
 [data-theme="light"] {
   --signin-background: #F7F5FF;
-  --background: #FFFFFF;
+  --background: #ffffff;
   --card-border: #E3DDF8;
   --input-bg: #F5F2FF;
   --input-border: #D8D0F5;

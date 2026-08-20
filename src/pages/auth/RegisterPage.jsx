@@ -45,6 +45,7 @@ const RegisterPage = () => {
   });
 
   const [validationErrors, setValidationErrors] = useState({});
+  const [serverError, setServerError] = useState(null);
 
   const handleChange = (e) => {
     const { name, value } = e.target;
@@ -62,6 +63,10 @@ const RegisterPage = () => {
     
     if (error) {
       dispatch(clearError());
+    }
+    
+    if (serverError) {
+      setServerError(null);
     }
   };
 
@@ -154,10 +159,10 @@ const RegisterPage = () => {
           setValidationErrors(prev => ({ ...prev, last_name: extractErrorMessage(err.last_name) }));
         }
         if (err.detail) {
-          alert(extractErrorMessage(err.detail));
+          setServerError(extractErrorMessage(err.detail));
         }
       } else {
-        alert(extractErrorMessage(err) || 'خطایی رخ داد، دوباره تلاش کنید');
+        setServerError(extractErrorMessage(err) || 'خطایی رخ داد، دوباره تلاش کنید');
       }
     }
   };
@@ -188,6 +193,23 @@ const RegisterPage = () => {
         {success && (
           <div className="mt-3 p-2 bg-green-100 border border-green-400 text-green-700 rounded-md text-sm">
             ثبت‌نام با موفقیت انجام شد! در حال انتقال به صفحه ورود...
+          </div>
+        )}
+
+        {/* نمایش خطای سرور */}
+        {serverError && (
+          <div className="mt-3 p-2 bg-red-50 border border-red-400 text-red-700 rounded-md text-sm flex items-center justify-between">
+            <div className="flex items-center gap-2">
+              <i className="fa-solid fa-triangle-exclamation" />
+              <span>{serverError}</span>
+            </div>
+            <button
+              type="button"
+              onClick={() => setServerError(null)}
+              className="text-red-700 hover:text-red-900 transition-colors"
+            >
+              <i className="fa-solid fa-xmark" />
+            </button>
           </div>
         )}
 

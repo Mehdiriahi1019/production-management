@@ -4,349 +4,18 @@ import { useDispatch, useSelector } from "react-redux";
 import { useParams, useLocation, useSearchParams, useNavigate, Link } from "react-router-dom";
 import { getPositionsListThunk } from "../../features/auth/positions/Positionslist/Positionsliststhunk";
 import { resetPositionsList } from "../../features/auth/positions/Positionslist/Positionslistslice";
-import { getUsersThunk } from "../../features/users/userslist/Usersthunk";
 import { getUsersPositionThunk } from "../../features/auth/positions/Usersposition/Userspositionthunk";
 import { getPositionDetailService } from "../../features/auth/positions/Positiondetail/Positiondetailservice";
+import { getPositionDetailThunk } from "../../features/auth/positions/Positiondetail/Positiondetailthunk";
 import { createPositionThunk } from "../../features/auth/positions/createposition/CreatePositionThunk";
 import { updatePositionThunk } from "../../features/auth/positions/updatePosition/updatePositionThunk";
 import { getPositionsThunk } from "../../features/auth/positions/Positionthunk";
-
-// ======== کامپوننت‌های جداشده ========
+import { getPermissionListThunk } from "../../features/auth/permission/permissionlist/permissionlistthunk";
+import UserPermission from "./UserPermission";
 import PositionTree from "./PositionTree";
 import UsersTable from "./UsersTable";
 import CreatePositionModal from "./CreatePositionModal";
-
-// ======== کامپوننت سرچ و انتخاب والد (باز شدن به سمت بالا) ========
-const SearchableParentSelect = ({ value, onChange, disabled, allPositions }) => {
-  const [isOpen, setIsOpen] = useState(false);
-  const [searchTerm, setSearchTerm] = useState("");
-  const [selectedLabel, setSelectedLabel] = useState("");
-  const dropdownRef = useRef(null);
-  const inputRef = useRef(null);
-
-  // پیدا کردن برچسب انتخاب شده
-  useEffect(() => {
-    if (value) {
-      const found = allPositions.find(p => p.id === value);
-      setSelectedLabel(found ? `${found.display_name} (${found.code})` : "");
-    } else {
-      setSelectedLabel("");
-    }
-  }, [value, allPositions]);
-
-  // فیلتر کردن پوزیشن‌ها بر اساس سرچ
-  const filteredPositions = allPositions.filter(p => {
-    if (!searchTerm.trim()) return true;
-    const search = searchTerm.trim().toLowerCase();
-    return (
-      p.display_name?.toLowerCase().includes(search) ||
-      p.code?.toLowerCase().includes(search) ||
-      `${p.display_name} ${p.code}`.toLowerCase().includes(search)
-    );
-  });
-
-  // بستن دراپ‌داون با کلیک خارج
-  useEffect(() => {
-    const handleClickOutside = (event) => {
-      if (dropdownRef.current && !dropdownRef.current.contains(event.target)) {
-        setIsOpen(false);
-      }
-    };
-    document.addEventListener("mousedown", handleClickOutside);
-    return () => document.removeEventListener("mousedown", handleClickOutside);
-  }, []);
-
-  const handleSelect = (position) => {
-    onChange(position.id);
-    setSelectedLabel(`${position.display_name} (${position.code})`);
-    setIsOpen(false);
-    setSearchTerm("");
-  };
-
-  const handleSelectNone = () => {
-    onChange(null);
-    setSelectedLabel("");
-    setIsOpen(false);
-    setSearchTerm("");
-  };
-
-  const handleClear = (e) => {
-    e.stopPropagation();
-    onChange(null);
-    setSelectedLabel("");
-    setSearchTerm("");
-    setIsOpen(false);
-  };
-
-  const toggleDropdown = () => {
-    if (!disabled) {
-      setIsOpen(!isOpen);
-      if (!isOpen) {
-        setTimeout(() => inputRef.current?.focus(), 100);
-      }
-    }
-  };
-
-  return (
-    <div className="relative" ref={dropdownRef}>
-      {/* ورودی اصلی */}
-      <div
-        className={`bg-Input_bg border border-Card_border rounded-lg px-3 py-2 text-sm text-Primary focus-within:ring-1 focus-within:ring-Secondary cursor-text ${
-          disabled ? "opacity-50 cursor-not-allowed" : ""
-        }`}
-        onClick={toggleDropdown}
-      >
-        <div className="flex items-center gap-2">
-          <input
-            ref={inputRef}
-            type="text"
-            placeholder="جستجوی والد..."
-            value={isOpen ? searchTerm : selectedLabel}
-            onChange={(e) => {
-              setSearchTerm(e.target.value);
-              if (!isOpen) setIsOpen(true);
-            }}
-            onFocus={() => !disabled && setIsOpen(true)}
-            disabled={disabled}
-            className="flex-1 bg-transparent outline-none text-sm text-Primary placeholder:text-Muted/60 min-w-0"
-            dir="rtl"
-          />
-          
-          {selectedLabel && !isOpen && (
-            <button
-              type="button"
-              onClick={handleClear}
-              disabled={disabled}
-              className="flex-shrink-0 text-Muted hover:text-red-500 transition-colors"
-            >
-              <i className="fas fa-times text-xs" />
-            </button>
-          )}
-          
-          <button
-            type="button"
-            onClick={toggleDropdown}
-            disabled={disabled}
-            className="flex-shrink-0 text-Muted hover:text-Secondary transition-colors"
-          >
-            <i className={`fas fa-chevron-${isOpen ? "up" : "down"} text-[10px]`} />
-          </button>
-        </div>
-      </div>
-
-      {/* دراپ‌داون (باز شدن به سمت بالا) */}
-      {isOpen && !disabled && (
-        <div className="absolute z-50 w-full mb-1 bottom-full bg-Background border border-Card_border rounded-lg shadow-lg max-h-52 overflow-y-auto">
-          {/* گزینه بدون والد */}
-          <button
-            type="button"
-            onClick={handleSelectNone}
-            className={`w-full px-3 py-2 text-right text-xs transition-colors hover:bg-Input_bg flex items-center justify-between ${
-              value === null ? "bg-Secondary/10 text-Secondary" : "text-Primary"
-            }`}
-          >
-            <span>بدون والد</span>
-            {value === null && (
-              <i className="fas fa-check text-Secondary text-[10px] mr-2" />
-            )}
-          </button>
-
-          {/* خط جداکننده */}
-          <div className="border-t border-Card_border my-1" />
-
-          {filteredPositions.length === 0 ? (
-            <div className="px-3 py-2 text-xs text-Muted">نتیجه‌ای یافت نشد</div>
-          ) : (
-            filteredPositions.map((p) => (
-              <button
-                key={p.id}
-                type="button"
-                onClick={() => handleSelect(p)}
-                className={`w-full px-3 py-2 text-right text-xs transition-colors hover:bg-Input_bg flex items-center justify-between ${
-                  value === p.id ? "bg-Secondary/10 text-Secondary" : "text-Primary"
-                }`}
-              >
-                <span>{p.display_name}</span>
-                <span className="text-Muted text-[10px]">{p.code}</span>
-                {value === p.id && (
-                  <i className="fas fa-check text-Secondary text-[10px] mr-2" />
-                )}
-              </button>
-            ))
-          )}
-        </div>
-      )}
-    </div>
-  );
-};
-
-// ======== مودال ویرایش پوزیشن ========
-const EditPositionModal = ({ position, onClose, onSubmit }) => {
-  const dispatch = useDispatch();
-  
-  const allPositions = useSelector((state) => state.positions?.positions || []);
-  const positionsLoading = useSelector((state) => state.positions?.loading || false);
-  const positionsLoaded = useSelector((state) => state.positions?.loaded || false);
-
-  const [displayName, setDisplayName] = useState("");
-  const [code, setCode] = useState("");
-  const [parentId, setParentId] = useState(null);
-  const [isActive, setIsActive] = useState(true);
-  const [submitting, setSubmitting] = useState(false);
-  const [fieldErrors, setFieldErrors] = useState({});
-  const [generalError, setGeneralError] = useState(null);
-
-  useEffect(() => {
-    if (!positionsLoaded && !positionsLoading) {
-      dispatch(getPositionsThunk());
-    }
-  }, [dispatch, positionsLoaded, positionsLoading]);
-
-  useEffect(() => {
-    if (position) {
-      setDisplayName(position.display_name || "");
-      setCode(position.code || "");
-      
-      const parentValue = position.parent || position.parent_id;
-      if (parentValue) {
-        const foundParent = allPositions.find(p => p.id === parentValue);
-        setParentId(foundParent ? foundParent.id : null);
-      } else {
-        setParentId(null);
-      }
-      
-      setIsActive(position.is_active !== undefined ? position.is_active : true);
-    }
-  }, [position, allPositions]);
-
-  const handleSubmit = async (e) => {
-    e.preventDefault();
-    setFieldErrors({});
-    setGeneralError(null);
-    setSubmitting(true);
-
-    const payload = {
-      display_name: displayName,
-      code: code,
-      is_active: isActive,
-      parent_id: parentId,
-    };
-
-    if (position) {
-      if (position.updated_at) {
-        payload.updated_at = position.updated_at;
-      }
-      if (position.updated_by) {
-        payload.updated_by = position.updated_by;
-      }
-    }
-
-    try {
-      await onSubmit(payload);
-      onClose();
-    } catch (err) {
-      const nextFieldErrors = {};
-      Object.entries(err || {}).forEach(([key, value]) => {
-        if (Array.isArray(value)) nextFieldErrors[key] = value.join("، ");
-      });
-      setFieldErrors(nextFieldErrors);
-      if (err?.message?.fa) setGeneralError(err.message.fa);
-    } finally {
-      setSubmitting(false);
-    }
-  };
-
-  return (
-    <div
-      className="fixed inset-0 bg-black/30 flex items-center justify-center z-50 px-4"
-      onClick={onClose}
-    >
-      <div
-        className="bg-Background border border-Card_border rounded-xl p-6 max-w-md w-full max-h-[90vh] overflow-y-auto"
-        onClick={(e) => e.stopPropagation()}
-      >
-        <h4 className="text-sm font-medium text-Primary mb-4">ویرایش پوزیشن</h4>
-
-        <form onSubmit={handleSubmit} className="flex flex-col gap-3">
-          <div className="flex flex-col gap-1.5">
-            <label className="text-xs text-Muted">عنوان پوزیشن</label>
-            <input
-              type="text"
-              value={displayName}
-              onChange={(e) => setDisplayName(e.target.value)}
-              disabled={submitting}
-              className="bg-Input_bg border border-Card_border rounded-lg px-3 py-2 text-sm text-Primary focus:outline-none focus:ring-1 focus:ring-Secondary"
-            />
-            {fieldErrors.display_name && (
-              <span className="text-[11px] text-red-500">{fieldErrors.display_name}</span>
-            )}
-          </div>
-
-          <div className="flex flex-col gap-1.5">
-            <label className="text-xs text-Muted">کد</label>
-            <input
-              type="text"
-              dir="ltr"
-              value={code}
-              onChange={(e) => setCode(e.target.value)}
-              disabled={submitting}
-              className="bg-Input_bg border border-Card_border rounded-lg px-3 py-2 text-sm text-Primary text-left focus:outline-none focus:ring-1 focus:ring-Secondary"
-            />
-            {fieldErrors.code && (
-              <span className="text-[11px] text-red-500">{fieldErrors.code}</span>
-            )}
-          </div>
-
-          <div className="flex flex-col gap-1.5">
-            <label className="text-xs text-Muted">وضعیت</label>
-            <select
-              value={isActive ? "true" : "false"}
-              onChange={(e) => setIsActive(e.target.value === "true")}
-              disabled={submitting}
-              className="bg-Input_bg border border-Card_border rounded-lg px-3 py-2 text-sm text-Primary focus:outline-none focus:ring-1 focus:ring-Secondary"
-            >
-              <option value="true">فعال</option>
-              <option value="false">غیرفعال</option>
-            </select>
-          </div>
-
-          <div className="flex flex-col gap-1.5">
-            <label className="text-xs text-Muted">والد</label>
-            <SearchableParentSelect
-              value={parentId}
-              onChange={setParentId}
-              disabled={submitting}
-              allPositions={allPositions}
-            />
-            {fieldErrors.parent_id && (
-              <span className="text-[11px] text-red-500">{fieldErrors.parent_id}</span>
-            )}
-          </div>
-
-          {generalError && <p className="text-xs text-red-500">{generalError}</p>}
-
-          <div className="flex items-center gap-2 mt-2">
-            <button
-              type="submit"
-              disabled={submitting || !displayName.trim() || !code.trim()}
-              className="flex-1 h-10 rounded-lg bg-Secondary text-white text-sm font-medium hover:opacity-90 transition-opacity disabled:opacity-50"
-            >
-              {submitting ? "در حال ویرایش..." : "ویرایش پوزیشن"}
-            </button>
-            <button
-              type="button"
-              onClick={onClose}
-              disabled={submitting}
-              className="flex-1 h-10 rounded-lg border border-Card_border text-Primary text-sm font-medium hover:bg-Input_bg transition-colors"
-            >
-              انصراف
-            </button>
-          </div>
-        </form>
-      </div>
-    </div>
-  );
-};
+import EditPositionModal from "./EditPositionModal";
 
 // ======== یه آیتم توی زیرمنوی فرزندها ========
 const PositionSubmenuItem = ({ position, depth, dispatch, selectedId }) => {
@@ -404,9 +73,8 @@ const PositionSubmenuItem = ({ position, depth, dispatch, selectedId }) => {
   return (
     <div>
       <div
-        className={`flex items-center gap-1.5 py-1.5 px-2 rounded-md transition-colors ${
-          isActive ? "bg-Secondary/10" : "hover:bg-Input_bg"
-        }`}
+        className={`flex items-center gap-1.5 py-1.5 px-2 rounded-md transition-colors ${isActive ? "bg-Secondary/10" : "hover:bg-Input_bg"
+          }`}
       >
         <button
           type="button"
@@ -417,9 +85,8 @@ const PositionSubmenuItem = ({ position, depth, dispatch, selectedId }) => {
             <i className="fas fa-spinner fa-spin text-[10px]" />
           ) : (
             <i
-              className={`fas fa-chevron-${
-                isExpanded ? "down" : "left"
-              } text-[10px]`}
+              className={`fas fa-chevron-${isExpanded ? "down" : "left"
+                } text-[10px]`}
             />
           )}
         </button>
@@ -508,14 +175,12 @@ const PositionRootItem = ({
 
   return (
     <div
-      className={`border-b border-Card_border last:border-b-0 transition-colors ${
-        isActive ? "bg-Secondary/5" : ""
-      }`}
+      className={`border-b border-Card_border last:border-b-0 transition-colors ${isActive ? "bg-Secondary/5" : ""
+        }`}
     >
       <div
-        className={`flex items-center gap-1.5 px-3 py-2.5 transition-colors ${
-          isActive ? "bg-Secondary/10" : "hover:bg-Input_bg"
-        }`}
+        className={`flex items-center gap-1.5 px-3 py-2.5 transition-colors ${isActive ? "bg-Secondary/10" : "hover:bg-Input_bg"
+          }`}
       >
         <button
           type="button"
@@ -530,9 +195,8 @@ const PositionRootItem = ({
             <i className="fas fa-spinner fa-spin text-[10px]" />
           ) : (
             <i
-              className={`fas fa-chevron-${
-                isExpanded ? "down" : "left"
-              } text-[10px]`}
+              className={`fas fa-chevron-${isExpanded ? "down" : "left"
+                } text-[10px]`}
             />
           )}
         </button>
@@ -634,6 +298,68 @@ const PositionsAndUsersPage = () => {
   const hasFetchedPositions = useRef(false);
   const hasFetchedUsersPosition = useRef(false);
 
+  // ======== تابع enrich کردن دسترسی‌ها ========
+  const enrichPositionWithPermissions = async (positionData) => {
+    if (!positionData) return positionData;
+
+    const rawPermissions = positionData.position_perm || positionData.permissions || [];
+
+    const hasFullObjects = rawPermissions.some(p =>
+      typeof p === "object" && p.display_name
+    );
+
+    if (hasFullObjects || rawPermissions.length === 0) {
+      return positionData;
+    }
+
+    const permIds = rawPermissions
+      .map((p) => {
+        if (typeof p === "string") return p;
+        if (typeof p === "number") return String(p);
+        if (typeof p === "object") {
+          return p.id || p.permission_id || p.permission?.id;
+        }
+        return null;
+      })
+      .filter(Boolean)
+      .map(id => String(id));
+
+    if (permIds.length === 0) {
+      return positionData;
+    }
+
+    try {
+      const result = await dispatch(getPermissionListThunk({ limit: 1000, offset: 0 })).unwrap();
+      let allPermissions = [];
+
+      if (result?.data && Array.isArray(result.data)) {
+        allPermissions = result.data;
+      } else if (Array.isArray(result)) {
+        allPermissions = result;
+      } else if (result?.results && Array.isArray(result.results)) {
+        allPermissions = result.results;
+      }
+
+      const enrichedPermissions = allPermissions.filter(p =>
+        permIds.includes(String(p.id)) ||
+        permIds.includes(String(p.permission_id))
+      );
+
+      if (enrichedPermissions.length > 0) {
+        return {
+          ...positionData,
+          position_perm: enrichedPermissions,
+          permissions: enrichedPermissions,
+        };
+      }
+
+      return positionData;
+    } catch (error) {
+      console.error('خطا در دریافت جزئیات دسترسی‌ها:', error);
+      return positionData;
+    }
+  };
+
   useEffect(() => {
     if (!expandedId) {
       setRootChildrenCache({});
@@ -662,6 +388,7 @@ const PositionsAndUsersPage = () => {
     }
   }, [dispatch, usersPositionLoaded, usersPositionLoading]);
 
+  // ======== دریافت جزئیات پوزیشن با دسترسی‌های کامل ========
   useEffect(() => {
     if (!positionId) {
       setPositionDetail(null);
@@ -674,8 +401,12 @@ const PositionsAndUsersPage = () => {
     setPositionDetailError(null);
 
     getPositionDetailService(positionId)
-      .then((res) => {
-        if (isMounted) setPositionDetail(res?.data || res);
+      .then(async (res) => {
+        if (isMounted) {
+          const positionData = res?.data || res;
+          const enrichedData = await enrichPositionWithPermissions(positionData);
+          setPositionDetail(enrichedData);
+        }
       })
       .catch((err) => {
         if (isMounted)
@@ -823,12 +554,34 @@ const PositionsAndUsersPage = () => {
     ).unwrap();
 
     const updatedDetail = await getPositionDetailService(editModal.positionId);
-    setPositionDetail(updatedDetail?.data || updatedDetail);
+    const enrichedData = await enrichPositionWithPermissions(updatedDetail?.data || updatedDetail);
+    setPositionDetail(enrichedData);
 
     dispatch(resetPositionsList());
     dispatch(getPositionsListThunk({ limit: 20, offset: 0 }));
 
     return result;
+  };
+
+  // ======== تابع رفرش جزئیات پوزیشن ========
+  const refreshPositionDetail = () => {
+    if (positionId) {
+      dispatch(getPositionDetailThunk(positionId));
+    }
+  };
+
+  // ======== تابع حذف دسترسی از لیست محلی ========
+  const handleDeletePermission = (permissionId) => {
+    if (positionDetail) {
+      const updatedPermissions = positionDetail.position_perm.filter(
+        p => p.id !== permissionId
+      );
+      setPositionDetail({
+        ...positionDetail,
+        position_perm: updatedPermissions,
+        permissions: updatedPermissions,
+      });
+    }
   };
 
   const activePosition =
@@ -990,6 +743,19 @@ const PositionsAndUsersPage = () => {
                       <i className="fas fa-edit ml-1" />
                       ویرایش
                     </button>
+                  </div>
+
+                  {/* دسترسی‌های این پوزیشن */}
+                  <div className="pt-3 border-t border-Card_border">
+                    <h4 className="text-xs font-medium text-Primary mb-2">دسترسی‌های این سمت</h4>
+                    <UserPermission
+                      permissions={positionDetail.position_perm || []}
+                      loading={positionDetailLoading}
+                      error={positionDetailError}
+                      positionId={positionDetail?.id}
+                      onPermissionChange={refreshPositionDetail}
+                      onDeleteSuccess={handleDeletePermission}
+                    />
                   </div>
                 </div>
               ) : null}

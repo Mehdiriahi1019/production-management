@@ -130,7 +130,7 @@ const Layout = () => {
 
   const handleNavigate = () => {
     setIsSidebarOpen(false);
-    setOpenMenus({}); // بستن همه منوها بعد از کلیک
+     // بستن همه منوها بعد از کلیک
   };
 
   return (

@@ -1,3 +1,4 @@
+// pages/production/Production.jsx
 import React, { useEffect, useMemo, useState } from "react";
 import { createPortal } from "react-dom";
 import { useDispatch, useSelector } from "react-redux";
@@ -12,6 +13,7 @@ import { getServiceDetail } from "../../features/production/services/servicedita
 import { clearServiceDetail } from "../../features/production/services/serviceditails/serviceditailsslice";
 import { updateService } from "../../features/production/services/serviceupdate/serviceupdatethunk";
 import { createServiceThunk } from "../../features/production/services/servicecreate/serviceCreateThunk";
+import { getPositionsThunk } from "../../features/auth/positions/Positionthunk";
 
 const unwrapModule = (mod) => {
   let current = mod;
@@ -135,10 +137,20 @@ const DetailsEditModal = ({ itemId, isOpen, onClose, onSave }) => {
     error: detailError,
   } = useSelector((state) => state.serviceDetail);
 
+  const { positions: positionOptions, loading: positionsLoading, loaded: positionsLoaded } =
+    useSelector((state) => state.positions) 
+
   const [isEditing, setIsEditing] = useState(false);
   const [formValues, setFormValues] = useState({
     display_name: "",
     code: "",
+    supervisor_position_id: "",
+    updated_at: "",
+  });
+  const [initialFormValues, setInitialFormValues] = useState({
+    display_name: "",
+    code: "",
+    supervisor_position_id: "",
     updated_at: "",
   });
   const [isSaving, setIsSaving] = useState(false);
@@ -151,6 +163,19 @@ const DetailsEditModal = ({ itemId, isOpen, onClose, onSave }) => {
     }
   }, [isOpen, itemId, dispatch]);
 
+  const positionsFetchedRef = useRef(false);
+  useEffect(() => {
+    if (
+      isOpen &&
+      !positionsFetchedRef.current &&
+      !positionsLoaded &&
+      !positionsLoading
+    ) {
+      positionsFetchedRef.current = true;
+      dispatch(getPositionsThunk());
+    }
+  }, [isOpen, dispatch, positionsLoaded, positionsLoading]);
+
   useEffect(() => {
     if (!isOpen) {
       dispatch(clearServiceDetail());
@@ -159,13 +184,27 @@ const DetailsEditModal = ({ itemId, isOpen, onClose, onSave }) => {
 
   useEffect(() => {
     if (detail) {
-      setFormValues({
+      // پیدا کردن موقعیت منطبق با supervisor_position
+      let matchedPositionId = "";
+      if (detail.supervisor_position && positionOptions && positionOptions.length > 0) {
+        const matched = positionOptions.find(
+          (p) => p.display_name === detail.supervisor_position
+        );
+        if (matched) {
+          matchedPositionId = matched.id;
+        }
+      }
+      
+      const newFormValues = {
         display_name: detail.display_name || "",
         code: detail.code || "",
+        supervisor_position: matchedPositionId || detail.supervisor_position_id || "",
         updated_at: detail.updated_at || "",
-      });
+      };
+      setFormValues(newFormValues);
+      setInitialFormValues(newFormValues);
     }
-  }, [detail]);
+  }, [detail, positionOptions]);
 
   useEffect(() => {
     if (isOpen) {
@@ -184,11 +223,24 @@ const DetailsEditModal = ({ itemId, isOpen, onClose, onSave }) => {
   };
 
   const handleSaveClick = async () => {
+    // Check if any field has changed
+    const hasChanges = 
+      formValues.display_name !== initialFormValues.display_name ||
+      formValues.code !== initialFormValues.code ||
+      formValues.supervisor_position !== initialFormValues.supervisor_position;
+
+    if (!hasChanges) {
+      setSaveError("هیچ تغییری اعمال نشده است");
+      return;
+    }
+
     setIsSaving(true);
     setSaveError(null);
     try {
       await onSave(itemId, formValues);
       setIsEditing(false);
+      // Update initial values after successful save
+      setInitialFormValues(formValues);
     } catch (err) {
       setSaveError(
         typeof err === "string" ? err : err?.fa || "خطا در ثبت ویرایش"
@@ -269,6 +321,31 @@ const DetailsEditModal = ({ itemId, isOpen, onClose, onSave }) => {
                 ) : (
                   <span className="text-sm font-mono text-Primary" dir="ltr">
                     {detail.code || "—"}
+                  </span>
+                )}
+              </div>
+
+              <div className="flex flex-col gap-1">
+                <span className="text-[11px] text-Muted">سمت سرپرست</span>
+                {isEditing ? (
+                  <select
+                    value={formValues.supervisor_position || ""}
+                    onChange={handleFieldChange("supervisor_position")}
+                    disabled={positionsLoading}
+                    className="w-full text-sm rounded-md border border-Card_border bg-Input_bg/40 px-2 py-1.5 text-Primary outline-none focus:border-Primary/50"
+                  >
+                    <option value="">
+                      {positionsLoading ? "در حال بارگذاری..." : "بدون سرپرست"}
+                    </option>
+                    {(positionOptions || []).map((position) => (
+                      <option key={position.id} value={position.id}>
+                        {position.display_name || position.title || position.name}
+                      </option>
+                    ))}
+                  </select>
+                ) : (
+                  <span className="text-sm text-Primary">
+                    {detail.supervisor_position || "—"}
                   </span>
                 )}
               </div>
@@ -785,6 +862,8 @@ const Production = () => {
         id,
         display_name: formValues.display_name,
         code: formValues.code,
+        supervisor_position_id: formValues.supervisor_position,
+        updated_at: formValues.updated_at,
       })
     ).unwrap();
 
@@ -845,10 +924,11 @@ const Production = () => {
                 <table className="w-full text-xs table-fixed">
                   <colgroup>
                     <col className="w-8" />
-                    <col className="w-[30%]" />
+                    <col className="w-[24%]" />
+                    <col className="w-[14%]" />
                     <col className="w-[18%]" />
-                    <col className="w-[22%]" />
-                    <col className="w-[20%]" />
+                    <col className="w-[18%]" />
+                    <col className="w-[16%]" />
                     <col className="w-10" />
                   </colgroup>
                   <thead>
@@ -858,6 +938,7 @@ const Production = () => {
                       <th className="px-2 py-2  text-center font-medium text-Muted truncate">کد</th>
                       <th className="px-2 py-2  text-center font-medium text-Muted truncate">تاریخ ایجاد</th>
                       <th className="px-2 py-2  text-center font-medium text-Muted truncate">ایجادکننده</th>
+                      <th className="px-2 py-2  text-center font-medium text-Muted truncate">سرپرست</th>
                       <th className="px-2 py-2  text-center font-medium text-Muted">ویرایش</th>
                     </tr>
                   </thead>
@@ -878,6 +959,9 @@ const Production = () => {
                         </td>
                         <td className="px-2 py-2 text-Muted text-center truncate" title={item.created_by || ""}>
                           {item.created_by || "—"}
+                        </td>
+                        <td className="px-2 py-2 text-Muted text-center truncate" title={item.supervisor_position || ""}>
+                          {item.supervisor_position || "—"}
                         </td>
                         <td className="px-2 py-2 text-center">
                           <button

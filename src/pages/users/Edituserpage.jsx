@@ -1,3 +1,4 @@
+// pages/EditUserPage.jsx
 import { useEffect, useState } from "react";
 import { useDispatch, useSelector } from "react-redux";
 import { Link, useParams } from "react-router-dom";
@@ -7,6 +8,7 @@ import { resetUserDetails } from "../../features/auth/profile/Userprofile/Userdi
 import { getPositionsThunk } from "../../features/auth/positions/Positionthunk";
 import { assignPositionsThunk } from "../../features/auth/positions/assignposition/Assignpositionsthunk";
 import { unassignPositionsThunk } from "../../features/auth/positions/Unassignpositions/Unassignpositionsthunk";
+import UserPermission from "./UserPermission";
 
 // فیلدهای غیرقابل‌ویرایشی که endpoint جزئیات کاربر برمی‌گردونه
 const READONLY_FIELDS = [
@@ -93,6 +95,11 @@ const EditUserPage = () => {
   const [selectedPositions, setSelectedPositions] = useState([]);
   const [isBulkDeleting, setIsBulkDeleting] = useState(false);
 
+  // State برای دسترسی‌ها
+  const [userPermissions, setUserPermissions] = useState([]);
+  const [permissionsLoading, setPermissionsLoading] = useState(false);
+  const [permissionsError, setPermissionsError] = useState(null);
+
   useEffect(() => {
     if (user) {
       setFormData({
@@ -103,6 +110,7 @@ const EditUserPage = () => {
         password: "",
       });
       setUserPositions(user.positions || []);
+      setUserPermissions(user.permissions || []);
     }
   }, [user]);
 
@@ -301,7 +309,6 @@ const EditUserPage = () => {
     setRemovePositionError(null);
 
     try {
-      // حذف چندتایی با ارسال آرایه‌ای از idها
       await dispatch(unassignPositionsThunk(selectedPositions)).unwrap();
       
       // حذف از لیست محلی
@@ -321,7 +328,6 @@ const EditUserPage = () => {
     try {
       await dispatch(unassignPositionsThunk([positionId])).unwrap();
       setUserPositions((prev) => prev.filter((p) => p.id !== positionId));
-      // اگر این سمت در لیست انتخاب شده بود، از لیست انتخاب حذفش کن
       setSelectedPositions((prev) => prev.filter((id) => id !== positionId));
     } catch (err) {
       setRemovePositionError(err?.message?.fa || "خطا در حذف سمت");
@@ -368,7 +374,7 @@ const EditUserPage = () => {
       </div>
 
       {/* دو ستون */}
-      <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+      <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
         {/* ستون راست - اطلاعات کاربر */}
         <div>
           <div className="bg-Background border border-Card_border rounded-xl divide-y divide-Card_border mb-4">
@@ -515,8 +521,9 @@ const EditUserPage = () => {
           </form>
         </div>
 
-        {/* ستون چپ - سمت‌ها */}
-        <div>
+        {/* ستون چپ - سمت‌ها و دسترسی‌ها */}
+        <div className="space-y-4">
+          {/* سمت‌ها */}
           <div className="bg-Background border border-Card_border rounded-xl overflow-hidden">
             <div className="px-4 py-3 border-b border-Card_border flex items-center justify-between">
               <div className="flex items-center gap-3">
@@ -615,6 +622,22 @@ const EditUserPage = () => {
             </div>
           </div>
 
+          {/* دسترسی‌ها */}
+          <div className="bg-Background border border-Card_border rounded-xl overflow-hidden">
+            <div className="px-4 py-3 border-b border-Card_border">
+              <h3 className="text-sm font-medium text-Primary">دسترسی‌ها</h3>
+            </div>
+            <div className="p-4">
+              <UserPermission
+                permissions={userPermissions}
+                loading={permissionsLoading}
+                error={permissionsError}
+                positionId={null}
+                onPermissionChange={null}
+              />
+            </div>
+          </div>
+
           {/* پاپ‌آپ افزودن سمت */}
           {showAddPosition && (
             <div className="fixed inset-0 bg-black/30 flex items-center justify-center z-50 px-4">
@@ -634,7 +657,6 @@ const EditUserPage = () => {
 
                   {!positionsLoading && !positionsError && (
                     <>
-                      {/* سلکت سمت + چک‌باکس اصلی بودن */}
                       <div className="flex items-end gap-2">
                         <div className="flex flex-col gap-1.5 flex-1">
                           <label className="text-xs text-Muted">سمت</label>

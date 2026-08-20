@@ -1,8 +1,9 @@
 // components/GoodsRoute.jsx
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useState, useRef } from 'react';
 import { useDispatch, useSelector } from 'react-redux';
 import { updateRouteThunk } from '../../../../features/production/goods/updateroute/updateroutethunk';
 import { deleteRouteThunk } from '../../../../features/production/goods/deleteroute/deleteroutethunk';
+import { addRouteThunk } from '../../../../features/production/goods/addroute/addroutethunk';
 import { getServiceSelectThunk } from '../../../../features/production/goods/serviceselect/serviceselectthunk';
 
 const SectionHeader = ({ icon, title }) => (
@@ -33,12 +34,17 @@ const GoodsRoute = ({ goodsId, routes, onRouteChange }) => {
     const dispatch = useDispatch();
     const { loading: updateRouteLoading } = useSelector((state) => state.updateRoute);
     const { loading: deleteRouteLoading } = useSelector((state) => state.deleteRoute);
+    const { loading: addRouteLoading } = useSelector((state) => state.addRoute);
     const { services: serviceList, loading: serviceLoading, loaded: serviceLoaded } = useSelector((state) => state.serviceSelect);
     const [editingRouteId, setEditingRouteId] = useState(null);
     const [editingServiceId, setEditingServiceId] = useState('');
     const [editingOrder, setEditingOrder] = useState('');
     const [updateMessage, setUpdateMessage] = useState(null);
     const [deletingRouteId, setDeletingRouteId] = useState(null);
+    const [showAddModal, setShowAddModal] = useState(false);
+    const [newServiceId, setNewServiceId] = useState('');
+    const [newOrder, setNewOrder] = useState('');
+    const modalRef = useRef(null);
 
     useEffect(() => {
         if (!serviceLoaded && !serviceLoading) {
@@ -46,19 +52,35 @@ const GoodsRoute = ({ goodsId, routes, onRouteChange }) => {
         }
     }, [dispatch, serviceLoaded, serviceLoading]);
 
+    useEffect(() => {
+        const handleClickOutside = (e) => {
+            if (modalRef.current && !modalRef.current.contains(e.target)) {
+                setShowAddModal(false);
+                setNewServiceId('');
+                setNewOrder('');
+            }
+        };
+
+        if (showAddModal) {
+            document.addEventListener('mousedown', handleClickOutside);
+        }
+
+        return () => {
+            document.removeEventListener('mousedown', handleClickOutside);
+        };
+    }, [showAddModal]);
+
     const sortedRoutes = routes
         ? [...routes].sort((a, b) => (a.sequence_order || 0) - (b.sequence_order || 0))
         : [];
 
-    if (sortedRoutes.length === 0) return null;
-
     const getRouteMessage = (err) => {
-        if (!err) return 'خطا در به‌روزرسانی مسیر';
+        if (!err) return 'خطا در عملیات';
         if (typeof err === 'string') return err;
         if (err?.message?.fa) return err.message.fa;
         if (err?.fa) return err.fa;
         if (err?.detail) return err.detail;
-        return 'خطا در به‌روزرسانی مسیر';
+        return 'خطا در عملیات';
     };
 
     const startEditing = (route) => {
@@ -113,7 +135,6 @@ const GoodsRoute = ({ goodsId, routes, onRouteChange }) => {
             setEditingServiceId('');
             setEditingOrder('');
             
-            // فراخوانی تابع برای آپدیت لیست
             if (onRouteChange) {
                 onRouteChange();
             }
@@ -135,7 +156,6 @@ const GoodsRoute = ({ goodsId, routes, onRouteChange }) => {
             setUpdateMessage({ type: 'success', text: 'مسیر با موفقیت حذف شد' });
             setTimeout(() => setUpdateMessage(null), 4000);
             
-            // فراخوانی تابع برای آپدیت لیست
             if (onRouteChange) {
                 onRouteChange();
             }
@@ -146,6 +166,50 @@ const GoodsRoute = ({ goodsId, routes, onRouteChange }) => {
         } finally {
             setDeletingRouteId(null);
         }
+    };
+
+    const handleAddRoute = async () => {
+        if (!newServiceId) {
+            setUpdateMessage({ type: 'error', text: 'لطفاً سرویس را انتخاب کنید' });
+            setTimeout(() => setUpdateMessage(null), 4000);
+            return;
+        }
+
+        if (!newOrder || isNaN(newOrder) || Number(newOrder) < 1 || Number(newOrder) > 3) {
+            setUpdateMessage({ type: 'error', text: 'لطفاً شماره مرحله را بین 1 تا 3 انتخاب کنید' });
+            setTimeout(() => setUpdateMessage(null), 4000);
+            return;
+        }
+
+        try {
+            await dispatch(addRouteThunk({
+                goodsId: goodsId,
+                payload: {
+                    service: newServiceId,
+                    sequence_order: Number(newOrder)
+                }
+            })).unwrap();
+            
+            setUpdateMessage({ type: 'success', text: 'مسیر با موفقیت اضافه شد' });
+            setTimeout(() => setUpdateMessage(null), 4000);
+            setShowAddModal(false);
+            setNewServiceId('');
+            setNewOrder('');
+            
+            if (onRouteChange) {
+                onRouteChange();
+            }
+        } catch (err) {
+            console.error('خطا در افزودن مسیر:', err);
+            setUpdateMessage({ type: 'error', text: getRouteMessage(err) });
+            setTimeout(() => setUpdateMessage(null), 4000);
+        }
+    };
+
+    const closeModal = () => {
+        setShowAddModal(false);
+        setNewServiceId('');
+        setNewOrder('');
     };
 
     const Message = ({ type, text }) => {
@@ -171,9 +235,100 @@ const GoodsRoute = ({ goodsId, routes, onRouteChange }) => {
         );
     };
 
+    const AddRouteModal = () => (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 backdrop-blur-[2px] p-4">
+            <div 
+                ref={modalRef}
+                className="w-full max-w-md rounded-xl border border-Card_border bg-Background shadow-lg p-6"
+                onClick={(e) => e.stopPropagation()}
+            >
+                <div className="flex items-center justify-between mb-4 border-b border-Card_border pb-3">
+                    <h3 className="text-sm font-medium text-Primary">افزودن مسیر جدید</h3>
+                    <button
+                        type="button"
+                        onClick={closeModal}
+                        className="text-Muted hover:text-Primary transition-colors"
+                    >
+                        <i className="fa-solid fa-xmark" />
+                    </button>
+                </div>
+
+                <div className="flex flex-col gap-4">
+                    <div className="flex flex-col gap-1.5">
+                        <label className="text-[11px] text-Muted">سرویس</label>
+                        <select
+                            value={newServiceId}
+                            onChange={(e) => setNewServiceId(e.target.value)}
+                            className="w-full text-sm rounded-md border border-Card_border bg-Input_bg/40 px-3 py-2 text-Primary outline-none focus:border-Primary/50"
+                            disabled={addRouteLoading}
+                        >
+                            <option value="">انتخاب سرویس</option>
+                            {(serviceList || []).map((service) => (
+                                <option key={service.id} value={service.id}>
+                                    {service.display_name}
+                                </option>
+                            ))}
+                        </select>
+                    </div>
+
+                    <div className="flex flex-col gap-1.5">
+                        <label className="text-[11px] text-Muted">مرحله تولید</label>
+                        <select
+                            value={newOrder}
+                            onChange={(e) => setNewOrder(e.target.value)}
+                            className="w-full text-sm rounded-md border border-Card_border bg-Input_bg/40 px-3 py-2 text-Primary outline-none focus:border-Primary/50"
+                            disabled={addRouteLoading}
+                        >
+                            <option value="">انتخاب مرحله</option>
+                            <option value="1">1</option>
+                            <option value="2">2</option>
+                            <option value="3">3</option>
+                        </select>
+                    </div>
+
+                    <div className="flex items-center gap-2 mt-2">
+                        <button
+                            type="button"
+                            onClick={handleAddRoute}
+                            disabled={addRouteLoading}
+                            className="flex-1 text-sm bg-Secondary text-white px-4 py-2 rounded-lg hover:bg-Secondary/90 transition-colors disabled:opacity-50"
+                        >
+                            {addRouteLoading ? (
+                                <>
+                                    <i className="fa-solid fa-spinner fa-spin ml-1" />
+                                    در حال افزودن...
+                                </>
+                            ) : (
+                                'افزودن'
+                            )}
+                        </button>
+                        <button
+                            type="button"
+                            onClick={closeModal}
+                            disabled={addRouteLoading}
+                            className="flex-1 text-sm border border-Card_border px-4 py-2 rounded-lg text-Primary hover:bg-Input_bg transition-colors disabled:opacity-50"
+                        >
+                            انصراف
+                        </button>
+                    </div>
+                </div>
+            </div>
+        </div>
+    );
+
     return (
         <div className="border border-Card_border rounded-xl p-4">
-            <SectionHeader icon="fa-solid fa-route" title="مسیر تولید" />
+            <div className="flex items-center justify-between mb-3">
+                <SectionHeader icon="fa-solid fa-route" title="مسیر تولید" />
+                <button
+                    type="button"
+                    onClick={() => setShowAddModal(true)}
+                    className="flex items-center gap-1 text-xs text-Secondary hover:text-Secondary/80 transition-colors"
+                >
+                    <i className="fa-solid fa-plus text-[10px]" />
+                    افزودن مسیر
+                </button>
+            </div>
 
             {updateMessage && (
                 <Message type={updateMessage.type} text={updateMessage.text} />
@@ -432,6 +587,9 @@ const GoodsRoute = ({ goodsId, routes, onRouteChange }) => {
                     );
                 })}
             </div>
+
+            {/* مودال افزودن مسیر */}
+            {showAddModal && <AddRouteModal />}
         </div>
     );
 };

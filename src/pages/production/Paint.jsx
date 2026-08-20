@@ -148,6 +148,13 @@ const extractErrorMessage = (err) => {
   return "خطایی رخ داد";
 };
 
+// ======== تابع نرمال‌سازی مقدار is_active به بولی واقعی ========
+const toBoolActive = (value) => {
+  if (typeof value === "boolean") return value;
+  if (typeof value === "string") return value.toLowerCase() === "true" || value === "1";
+  return Boolean(value);
+};
+
 // ======== مودال جزئیات و ویرایش ========
 // این مودال دیگه کل آیتم رو از جدول نمی‌گیره؛ فقط "itemId" رو می‌گیره
 // و خودش با دیسپچ کردن getPaintDetailThunk(id) جزئیات رو از API جدا
@@ -185,13 +192,12 @@ const DetailsEditModal = ({ itemId, isOpen, onClose, onSaved }) => {
     }
   }, [isOpen, dispatch]);
 
-  // وقتی جزئیات از سرور رسید، فرم ادیت رو باهاش پر کن
   useEffect(() => {
     if (item) {
       setFormValues({
         display_name: item.display_name || item.name || "",
         code: item.code || "",
-        is_active: item.is_active !== false,
+        is_active: toBoolActive(item.is_active),
         updated_at: item.updated_at || "",
       });
     }
@@ -219,18 +225,8 @@ const DetailsEditModal = ({ itemId, isOpen, onClose, onSaved }) => {
 
   const handleSaveClick = async () => {
     if (!itemId) {
-      // eslint-disable-next-line no-console
-      console.warn("handleSaveClick: itemId خالیه، درخواست اصلاً ارسال نمیشه");
       return;
     }
-
-    // eslint-disable-next-line no-console
-    console.log("در حال ارسال درخواست ویرایش برای آیدی:", itemId, {
-      display_name: formValues.display_name,
-      code: formValues.code,
-      is_active: formValues.is_active,
-      updated_at: formValues.updated_at,
-    });
 
     try {
       const result = await dispatch(
@@ -243,17 +239,13 @@ const DetailsEditModal = ({ itemId, isOpen, onClose, onSaved }) => {
         })
       ).unwrap();
 
-      // eslint-disable-next-line no-console
-      console.log("ویرایش با موفقیت انجام شد:", result);
-
       // رفرش جزئیات همین مودال تا مقادیر جدید درجا نمایش داده بشن
       dispatch(getPaintDetailThunk(itemId));
 
       onSaved?.();
       setIsEditing(false);
     } catch (err) {
-      // eslint-disable-next-line no-console
-      console.error("خطا در ارسال درخواست ویرایش:", err);
+      // خطا توسط slice مدیریت میشه
     }
   };
 
@@ -349,11 +341,11 @@ const DetailsEditModal = ({ itemId, isOpen, onClose, onSaved }) => {
                   </label>
                 ) : (
                   <span className={`text-[10px] w-fit px-2 py-0.5 rounded-full ${
-                    item.is_active !== false
+                    toBoolActive(item.is_active)
                       ? 'bg-green-100 text-green-700'
                       : 'bg-red-100 text-red-700'
                   }`}>
-                    {item.is_active !== false ? 'فعال' : 'غیرفعال'}
+                    {toBoolActive(item.is_active) ? 'فعال' : 'غیرفعال'}
                   </span>
                 )}
               </div>
@@ -397,7 +389,7 @@ const DetailsEditModal = ({ itemId, isOpen, onClose, onSaved }) => {
                         setFormValues({
                           display_name: item.display_name || item.name || "",
                           code: item.code || "",
-                          is_active: item.is_active !== false,
+                          is_active: toBoolActive(item.is_active),
                           updated_at: item.updated_at || "",
                         });
                       }}
@@ -985,7 +977,7 @@ const Paint = () => {
                               ? 'bg-green-100 text-green-700'
                               : 'bg-red-100 text-red-700'
                           }`}>
-                            {item.is_active !== false ? 'فعال' : 'غیرفعال'}
+                            {item.is_active === false ? 'غیرفعال' : 'فعال'}
                           </span>
                         </td>
                         <td className="px-2 py-2 text-center">

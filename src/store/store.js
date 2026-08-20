@@ -30,6 +30,12 @@ import updateFileReducer from '../features/production/goods/updatefile/updatefil
 import updateRouteReducer from '../features/production/goods/updateroute/updaterouteslice';
 import serviceSelectReducer from '../features/production/goods/serviceselect/serviceselectslice';
 import deleteRouteReducer from '../features/production/goods/deleteroute/deleterouteslice';
+import addRouteReducer from '../features/production/goods/addroute/addrouteslice';
+import createGoodsReducer from '../features/production/goods/creategoods/creategoodsslice';
+import goodsUpdateReducer from '../features/production/goods/goodsupdate/goodsupdateslice';
+import permissionListSlicereducer from '../features/auth/permission/permissionlist/permissionlistslice';
+import addPremissionToPositionReducer from '../features/auth/permission/addpremissiontoposition/addpremissiontopositionslice';
+import deletePermissionForPositionReducer from '../features/auth/permission/deletepermissionforposition/deletepermissionforpositionslice';
 
 
 
@@ -68,5 +74,12 @@ export const store = configureStore({
     updateRoute: updateRouteReducer,
     serviceSelect: serviceSelectReducer,
     deleteRoute: deleteRouteReducer,
+    addRoute: addRouteReducer,
+    createGoods: createGoodsReducer,
+    goodsUpdate: goodsUpdateReducer,
+    permissionList: permissionListSlicereducer,
+    addPremissionToPosition: addPremissionToPositionReducer,
+    deletePermissionForPosition: deletePermissionForPositionReducer,
+
   },
 });
