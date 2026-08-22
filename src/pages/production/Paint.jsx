@@ -155,10 +155,6 @@ const toBoolActive = (value) => {
   return Boolean(value);
 };
 
-// ======== مودال جزئیات و ویرایش ========
-// این مودال دیگه کل آیتم رو از جدول نمی‌گیره؛ فقط "itemId" رو می‌گیره
-// و خودش با دیسپچ کردن getPaintDetailThunk(id) جزئیات رو از API جدا
-// (اسلایس/تانک paintDetail) می‌گیره.
 const DetailsEditModal = ({ itemId, isOpen, onClose, onSaved }) => {
   const dispatch = useDispatch();
   const {
@@ -900,7 +896,7 @@ const Paint = () => {
           <FiltersBar filters={filters} onChange={setFilters} onReset={handleReset} />
 
           {/* لودینگ */}
-          {loading ? (
+          {loading && paints.length === 0 ? (
             <div className="flex items-center justify-center h-[150px]">
               <span className="text-sm text-Muted">
                 <i className="fa-solid fa-spinner fa-spin ml-1" />
@@ -922,7 +918,7 @@ const Paint = () => {
               </span>
             </div>
           ) : (
-            <>
+            <div className={`transition-opacity duration-150 ${loading ? 'opacity-50 pointer-events-none' : ''}`}>
               {/* کارت‌های موبایل */}
               <div className="flex flex-col gap-2 p-2 sm:hidden">
                 {paints.map((item, index) => (
@@ -998,7 +994,7 @@ const Paint = () => {
 
               {/* صفحه‌بندی */}
               <PaginationBar filters={filters} onChange={setFilters} totalCount={total} />
-            </>
+            </div>
           )}
         </div>
       </div>

@@ -892,7 +892,7 @@ const Sheets = () => {
           <FiltersBar filters={filters} onChange={setFilters} onReset={handleReset} />
 
           {/* لودینگ */}
-          {loading ? (
+          {sheets?.length === 0 ? (
             <div className="flex items-center justify-center h-[150px]">
               <span className="text-sm text-Muted">
                 <i className="fa-solid fa-spinner fa-spin ml-1" />

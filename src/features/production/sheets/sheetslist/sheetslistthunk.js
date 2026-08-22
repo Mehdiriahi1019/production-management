@@ -1,4 +1,4 @@
-// features/production/sheets/sheetsistthunk.js
+// features/production/sheets/sheetslistthunk.js
 import { createAsyncThunk } from '@reduxjs/toolkit';
 import { sheetslistservice } from './sheetslistservice';
 
@@ -7,7 +7,10 @@ export const getSheetsListThunk = createAsyncThunk(
     async (params = {}, { rejectWithValue }) => {
         try {
             const response = await sheetslistservice(params);
-            return response.data?.data ?? response.data;
+            return {
+                data: response.data?.data ?? [],
+                meta: response.data?.meta ?? null,
+            };
         } catch (error) {
             return rejectWithValue(
                 error.response?.data || { detail: 'خطا در دریافت لیست ورق‌ها' }

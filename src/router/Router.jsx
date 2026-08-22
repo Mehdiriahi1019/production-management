@@ -17,6 +17,8 @@ import Device from "../pages/production/Device";
 import Sheets from "../pages/production/Sheets";
 import Goods from "../pages/production/Goods";
 import GoodsDitail from "../pages/production/goodsditail/GoodsDitail";
+import Menu from "../pages/auth/Menu";
+import ProductionOrder from "../pages/productionorder/ProductionOrder";
 
 export const router = createBrowserRouter([
   {
@@ -86,6 +88,14 @@ export const router = createBrowserRouter([
           {
             path: "/productionpage/goods/goodsditail/:id",
             element: <GoodsDitail/>,
+          },
+          {
+            path: "/productionpage/order",
+            element: <ProductionOrder/>,
+          },
+          {
+            path: "/menu",
+            element: <Menu/>,
           },
 
           {

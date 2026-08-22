@@ -26,20 +26,9 @@ const sheetsSlice = createSlice({
             .addCase(getSheetsListThunk.fulfilled, (state, action) => {
                 state.loading = false;
                 state.error = null;
-                
-                if (action.payload?.results) {
-                    state.sheets = action.payload.results;
-                    state.total = action.payload.count || 0;
-                } else if (action.payload?.data) {
-                    state.sheets = action.payload.data;
-                    state.total = action.payload.total || 0;
-                } else if (Array.isArray(action.payload)) {
-                    state.sheets = action.payload;
-                    state.total = action.payload.length;
-                } else {
-                    state.sheets = action.payload || [];
-                    state.total = action.payload?.length || 0;
-                }
+
+                state.sheets = action.payload?.data || [];
+                state.total = action.payload?.meta?.count || 0;
             })
             .addCase(getSheetsListThunk.rejected, (state, action) => {
                 state.loading = false;

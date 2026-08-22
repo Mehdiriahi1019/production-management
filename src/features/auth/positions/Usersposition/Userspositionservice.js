@@ -1,4 +1,3 @@
-// features/users/usersPosition/usersPositionService.js
 import { API_URL } from "../../../../api/api";
 import axiosInstance from "../../../../api/axiosinstance";
 

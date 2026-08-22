@@ -11,7 +11,7 @@ import { createPositionThunk } from "../../features/auth/positions/createpositio
 import { updatePositionThunk } from "../../features/auth/positions/updatePosition/updatePositionThunk";
 import { getPositionsThunk } from "../../features/auth/positions/Positionthunk";
 import { getPermissionListThunk } from "../../features/auth/permission/permissionlist/permissionlistthunk";
-import UserPermission from "./UserPermission";
+import UserPermission from "./PositionPermission";
 import PositionTree from "./PositionTree";
 import UsersTable from "./UsersTable";
 import CreatePositionModal from "./CreatePositionModal";

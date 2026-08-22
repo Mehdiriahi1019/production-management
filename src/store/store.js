@@ -36,7 +36,19 @@ import goodsUpdateReducer from '../features/production/goods/goodsupdate/goodsup
 import permissionListSlicereducer from '../features/auth/permission/permissionlist/permissionlistslice';
 import addPremissionToPositionReducer from '../features/auth/permission/addpremissiontoposition/addpremissiontopositionslice';
 import deletePermissionForPositionReducer from '../features/auth/permission/deletepermissionforposition/deletepermissionforpositionslice';
-
+import addPermissionToUserReducer from '../features/auth/permission/addpermissiontouser/addpermissiontouserslice';
+import deleteUserPermissionReducer from '../features/auth/permission/deleteuserpermission/deleteuserpermissionslice';
+import editPermissionForUserReducer from '../features/auth/permission/editpermissionforuser/editpermissionforuserslice';
+import menuListReducer from '../features/auth/menulist/menulistslice';
+import menuForAdminReducer from '../features/auth/menuforadmin/menuforadminslice';
+import updateMenuReducer from '../features/auth/updatdemenu/updademenuslice';
+import orderListReducer from '../features/production/productionorder/orderlist/orderlistslice';
+import goodsForSelectReducer from '../features/production/goods/goodsforselect/goodsforselectslice';
+import orderTypeReducer from '../features/production/productionorder/ordertype/ordertypeslice';
+import createOrderReducer from '../features/production/productionorder/createorder/createorderslice';
+import paintsForSelectReducer from '../features/production/paints/paintsforselect/paintsforselectslice';
+import sheetsForSelectReducer from '../features/production/sheets/sheetsforselect/sheetsforselectslice';
+import updateStatusReducer from '../features/production/productionorder/updatestatus/updatestatusslice';
 
 
 
@@ -80,6 +92,18 @@ export const store = configureStore({
     permissionList: permissionListSlicereducer,
     addPremissionToPosition: addPremissionToPositionReducer,
     deletePermissionForPosition: deletePermissionForPositionReducer,
-
+    addPermissionToUser: addPermissionToUserReducer,
+    deleteUserPermission: deleteUserPermissionReducer,
+    editPermissionForUser: editPermissionForUserReducer,
+    menuList: menuListReducer,
+    menuForAdmin: menuForAdminReducer,
+    menuUpdate: updateMenuReducer,
+    orderList: orderListReducer,
+    goodsForSelect: goodsForSelectReducer,
+    orderType: orderTypeReducer,
+    createOrder: createOrderReducer,
+    paintsForSelect: paintsForSelectReducer,
+    sheetsForSelect: sheetsForSelectReducer,
+    updateStatus: updateStatusReducer,
   },
 });

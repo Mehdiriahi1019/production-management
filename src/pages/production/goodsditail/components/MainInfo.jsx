@@ -34,13 +34,6 @@ const formatDateTime = (dateTimeStr) => {
     return dateTimeStr;
 };
 
-const formatTime = (timeString) => {
-    if (!timeString) return "—";
-    return timeString;
-};
-
-// این دو کامپوننت به بیرون از MainInfo منتقل شدند تا با هر re-render
-// از نو ساخته نشوند؛ همین باعث از دست رفتن فوکوس input بعد از هر حرف بود.
 const Message = ({ type, text, onClose }) => {
     if (!text) return null;
 
@@ -97,7 +90,6 @@ const MainInfo = ({ item, onUpdate }) => {
                 title: item.title || '',
                 sn_code: item.sn_code || '',
                 warehouse_code: item.warehouse_code || '',
-                production_time_factor: item.production_time_factor || '00:00:00',
                 updated_at: item.updated_at || '',
             });
         }
@@ -118,16 +110,13 @@ const MainInfo = ({ item, onUpdate }) => {
 
     useEffect(() => {
         if (updateError) {
-            // استخراج پیام خطا از فرمت سرور
             let errorText = 'خطا در به‌روزرسانی اطلاعات';
             
             if (typeof updateError === 'string') {
                 errorText = updateError;
             } else if (updateError?.errors?.fa) {
-                // فرمت مورد نظر: { errors: { fa: "...", en: "..." } }
                 errorText = updateError.errors.fa;
             } else if (updateError?.errors) {
-                // اگر errors یک آبجکت با keyهای مختلف بود
                 const firstKey = Object.keys(updateError.errors)[0];
                 if (firstKey) {
                     const firstError = updateError.errors[firstKey];
@@ -179,9 +168,6 @@ const MainInfo = ({ item, onUpdate }) => {
         if (formValues.warehouse_code !== original.warehouse_code) {
             payload.warehouse_code = formValues.warehouse_code;
         }
-        if (formValues.production_time_factor !== original.production_time_factor) {
-            payload.production_time_factor = formValues.production_time_factor;
-        }
 
         // اگر هیچ فیلدی تغییر نکرده بود
         if (Object.keys(payload).length === 0) {
@@ -210,7 +196,6 @@ const MainInfo = ({ item, onUpdate }) => {
             title: item.title || '',
             sn_code: item.sn_code || '',
             warehouse_code: item.warehouse_code || '',
-            production_time_factor: item.production_time_factor || '00:00:00',
             updated_at: item.updated_at || '',
         });
         setUpdateMessage(null);
@@ -279,24 +264,13 @@ const MainInfo = ({ item, onUpdate }) => {
                     onChange={handleFieldChange}
                     disabled={updateLoading}
                 />
-                <InfoField 
-                    label="زمان تولید" 
-                    value={formatTime(item.production_time_factor)} 
-                    mono 
-                    editable={true} 
-                    fieldKey="production_time_factor" 
-                    isEditing={isEditing}
-                    formValues={formValues}
-                    onChange={handleFieldChange}
-                    disabled={updateLoading}
-                />
                 <div className="flex flex-col gap-1">
                     <span className="text-[11px] text-Muted">وضعیت</span>
                     <StatusBadge active={item.is_active} />
                 </div>
-                <InfoField label="تاریخ ایجاد" value={formatDateTime(item.created_at)} isEditing={isEditing} formValues={formValues} onChange={handleFieldChange} />
-                <InfoField label="ایجادکننده" value={item.created_by} isEditing={isEditing} formValues={formValues} onChange={handleFieldChange} />
-                <InfoField label="به‌روزرسانی‌کننده" value={item.updated_by} isEditing={isEditing} formValues={formValues} onChange={handleFieldChange} />
+                <InfoField label="تاریخ ایجاد" value={formatDateTime(item.created_at)} />
+                <InfoField label="ایجادکننده" value={item.created_by} />
+                <InfoField label="به‌روزرسانی‌کننده" value={item.updated_by} />
             </div>
 
             {isEditing && (

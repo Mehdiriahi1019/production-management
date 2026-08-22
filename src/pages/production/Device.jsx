@@ -891,7 +891,7 @@ const Devices = () => {
           <FiltersBar filters={filters} onChange={setFilters} onReset={handleReset} />
 
           {/* لودینگ */}
-          {loading ? (
+          {loading && devices.length === 0 ? (
             <div className="flex items-center justify-center h-[150px]">
               <span className="text-sm text-Muted">
                 <i className="fa-solid fa-spinner fa-spin ml-1" />
@@ -913,7 +913,7 @@ const Devices = () => {
               </span>
             </div>
           ) : (
-            <>
+            <div className={`transition-opacity duration-150 ${loading ? 'opacity-50 pointer-events-none' : ''}`}>
               {/* کارت‌های موبایل */}
               <div className="flex flex-col gap-2 p-2 sm:hidden">
                 {devices.map((item, index) => (
@@ -989,7 +989,7 @@ const Devices = () => {
 
               {/* صفحه‌بندی */}
               <PaginationBar filters={filters} onChange={setFilters} totalCount={total} />
-            </>
+            </div>
           )}
         </div>
       </div>

@@ -6,6 +6,61 @@ import { deleteRouteThunk } from '../../../../features/production/goods/deletero
 import { addRouteThunk } from '../../../../features/production/goods/addroute/addroutethunk';
 import { getServiceSelectThunk } from '../../../../features/production/goods/serviceselect/serviceselectthunk';
 
+const TIME_REGEX = /^([0-1][0-9]|2[0-3]):[0-5][0-9]:[0-5][0-9]$/;
+
+// کامپوننت ساده ورودی مدت زمان با فرمت HH:MM:SS
+const DurationInput = ({ value, onChange, disabled, className }) => {
+    const handleChange = (e) => {
+        let val = e.target.value;
+        val = val.replace(/[^0-9:]/g, '');
+        
+        if (val.length > 8) {
+            val = val.slice(0, 8);
+        }
+        
+        if (val.length === 2 && !val.includes(':')) {
+            val = val + ':';
+        } else if (val.length === 5 && !val.includes(':')) {
+            val = val + ':';
+        }
+        
+        onChange(val);
+    };
+
+    const handleKeyDown = (e) => {
+        if (e.key === 'Backspace') {
+            const cursorPos = e.target.selectionStart;
+            const val = e.target.value;
+            
+            if (cursorPos === 3 && val[2] === ':') {
+                e.preventDefault();
+                const newVal = val.slice(0, 2) + val.slice(3);
+                onChange(newVal);
+                e.target.setSelectionRange(2, 2);
+            } else if (cursorPos === 6 && val[5] === ':') {
+                e.preventDefault();
+                const newVal = val.slice(0, 5) + val.slice(6);
+                onChange(newVal);
+                e.target.setSelectionRange(5, 5);
+            }
+        }
+    };
+
+    return (
+        <input
+            type="text"
+            value={value || '00:00:00'}
+            onChange={handleChange}
+            onKeyDown={handleKeyDown}
+            disabled={disabled}
+            className={className}
+            placeholder="00:00:00"
+            maxLength="8"
+            dir="ltr"
+        />
+    );
+};
+
 const SectionHeader = ({ icon, title }) => (
     <h4 className="flex items-center gap-2 text-xs font-medium text-Primary mb-3 border-b border-Card_border pb-2">
         <span className="flex items-center justify-center w-6 h-6 rounded-md bg-Secondary/10 text-Secondary flex-shrink-0">
@@ -30,6 +85,162 @@ const formatDateTime = (dateTimeStr) => {
     return dateTimeStr;
 };
 
+const formatDuration = (timeStr) => {
+    if (!timeStr || timeStr === '00:00:00') return '—';
+    const parts = timeStr.split(':');
+    const hours = parseInt(parts[0]);
+    const minutes = parseInt(parts[1]);
+    const seconds = parseInt(parts[2]);
+    
+    let result = '';
+    if (hours > 0) result += `${hours} ساعت `;
+    if (minutes > 0) result += `${minutes} دقیقه `;
+    if (seconds > 0) result += `${seconds} ثانیه`;
+    if (result === '') return '—';
+    return result.trim();
+};
+
+// ======== کامپوننت مودال افزودن مسیر ========
+const AddRouteModal = ({ 
+    isOpen, 
+    onClose, 
+    onAdd, 
+    loading, 
+    serviceList, 
+    serviceLoading 
+}) => {
+    const [newServiceId, setNewServiceId] = useState('');
+    const [newOrder, setNewOrder] = useState('');
+    const [newProductionTime, setNewProductionTime] = useState('00:00:00');
+    const modalRef = useRef(null);
+
+    useEffect(() => {
+        const handleClickOutside = (e) => {
+            if (modalRef.current && !modalRef.current.contains(e.target)) {
+                handleClose();
+            }
+        };
+
+        if (isOpen) {
+            document.addEventListener('mousedown', handleClickOutside);
+        }
+
+        return () => {
+            document.removeEventListener('mousedown', handleClickOutside);
+        };
+    }, [isOpen]);
+
+    const handleClose = () => {
+        setNewServiceId('');
+        setNewOrder('');
+        setNewProductionTime('00:00:00');
+        onClose();
+    };
+
+    const handleSubmit = () => {
+        onAdd({
+            serviceId: newServiceId,
+            order: newOrder,
+            productionTime: newProductionTime
+        });
+        handleClose();
+    };
+
+    if (!isOpen) return null;
+
+    return (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 backdrop-blur-[2px] p-4">
+            <div 
+                ref={modalRef}
+                className="w-full max-w-md rounded-xl border border-Card_border bg-Background shadow-lg p-6"
+                onClick={(e) => e.stopPropagation()}
+            >
+                <div className="flex items-center justify-between mb-4 border-b border-Card_border pb-3">
+                    <h3 className="text-sm font-medium text-Primary">افزودن مسیر جدید</h3>
+                    <button
+                        type="button"
+                        onClick={handleClose}
+                        className="text-Muted hover:text-Primary transition-colors"
+                    >
+                        <i className="fa-solid fa-xmark" />
+                    </button>
+                </div>
+
+                <div className="flex flex-col gap-4">
+                    <div className="flex flex-col gap-1.5">
+                        <label className="text-[11px] text-Muted">سرویس</label>
+                        <select
+                            value={newServiceId}
+                            onChange={(e) => setNewServiceId(e.target.value)}
+                            className="w-full text-sm rounded-md border border-Card_border bg-Input_bg/40 px-3 py-2 text-Primary outline-none focus:border-Primary/50"
+                            disabled={loading}
+                        >
+                            <option value="">انتخاب سرویس</option>
+                            {(serviceList || []).map((service) => (
+                                <option key={service.id} value={service.id}>
+                                    {service.display_name}
+                                </option>
+                            ))}
+                        </select>
+                    </div>
+
+                    <div className="flex flex-col gap-1.5">
+                        <label className="text-[11px] text-Muted">مرحله تولید</label>
+                        <select
+                            value={newOrder}
+                            onChange={(e) => setNewOrder(e.target.value)}
+                            className="w-full text-sm rounded-md border border-Card_border bg-Input_bg/40 px-3 py-2 text-Primary outline-none focus:border-Primary/50"
+                            disabled={loading}
+                        >
+                            <option value="">انتخاب مرحله</option>
+                            <option value="1">1</option>
+                            <option value="2">2</option>
+                            <option value="3">3</option>
+                        </select>
+                    </div>
+
+                    <div className="flex flex-col gap-1.5">
+                        <label className="text-[11px] text-Muted">زمان تولید (مدت زمان)</label>
+                        <DurationInput
+                            value={newProductionTime}
+                            onChange={setNewProductionTime}
+                            disabled={loading}
+                            className="w-full text-sm rounded-md border border-Card_border bg-Input_bg/40 px-3 py-2 text-Primary outline-none focus:border-Primary/50 font-mono text-center"
+                        />
+                        <span className="text-[10px] text-Muted">فرمت: HH:MM:SS (مثال: 00:20:30 برای 20 دقیقه و 30 ثانیه)</span>
+                    </div>
+
+                    <div className="flex items-center gap-2 mt-2">
+                        <button
+                            type="button"
+                            onClick={handleSubmit}
+                            disabled={loading || !newServiceId || !newOrder || newProductionTime === '00:00:00'}
+                            className="flex-1 text-sm bg-Secondary text-white px-4 py-2 rounded-lg hover:bg-Secondary/90 transition-colors disabled:opacity-50"
+                        >
+                            {loading ? (
+                                <>
+                                    <i className="fa-solid fa-spinner fa-spin ml-1" />
+                                    در حال افزودن...
+                                </>
+                            ) : (
+                                'افزودن'
+                            )}
+                        </button>
+                        <button
+                            type="button"
+                            onClick={handleClose}
+                            disabled={loading}
+                            className="flex-1 text-sm border border-Card_border px-4 py-2 rounded-lg text-Primary hover:bg-Input_bg transition-colors disabled:opacity-50"
+                        >
+                            انصراف
+                        </button>
+                    </div>
+                </div>
+            </div>
+        </div>
+    );
+};
+
 const GoodsRoute = ({ goodsId, routes, onRouteChange }) => {
     const dispatch = useDispatch();
     const { loading: updateRouteLoading } = useSelector((state) => state.updateRoute);
@@ -39,36 +250,17 @@ const GoodsRoute = ({ goodsId, routes, onRouteChange }) => {
     const [editingRouteId, setEditingRouteId] = useState(null);
     const [editingServiceId, setEditingServiceId] = useState('');
     const [editingOrder, setEditingOrder] = useState('');
+    const [editingProductionTime, setEditingProductionTime] = useState('00:00:00');
     const [updateMessage, setUpdateMessage] = useState(null);
+    const [messageVisible, setMessageVisible] = useState(false);
     const [deletingRouteId, setDeletingRouteId] = useState(null);
     const [showAddModal, setShowAddModal] = useState(false);
-    const [newServiceId, setNewServiceId] = useState('');
-    const [newOrder, setNewOrder] = useState('');
-    const modalRef = useRef(null);
 
     useEffect(() => {
         if (!serviceLoaded && !serviceLoading) {
             dispatch(getServiceSelectThunk());
         }
     }, [dispatch, serviceLoaded, serviceLoading]);
-
-    useEffect(() => {
-        const handleClickOutside = (e) => {
-            if (modalRef.current && !modalRef.current.contains(e.target)) {
-                setShowAddModal(false);
-                setNewServiceId('');
-                setNewOrder('');
-            }
-        };
-
-        if (showAddModal) {
-            document.addEventListener('mousedown', handleClickOutside);
-        }
-
-        return () => {
-            document.removeEventListener('mousedown', handleClickOutside);
-        };
-    }, [showAddModal]);
 
     const sortedRoutes = routes
         ? [...routes].sort((a, b) => (a.sequence_order || 0) - (b.sequence_order || 0))
@@ -88,12 +280,14 @@ const GoodsRoute = ({ goodsId, routes, onRouteChange }) => {
         const matchedService = (serviceList || []).find((s) => s.display_name === route.service);
         setEditingServiceId(matchedService?.id || '');
         setEditingOrder(route.sequence_order?.toString() || '');
+        setEditingProductionTime(route.production_time_factor || '00:00:00');
     };
 
     const cancelEditing = () => {
         setEditingRouteId(null);
         setEditingServiceId('');
         setEditingOrder('');
+        setEditingProductionTime('');
         setUpdateMessage(null);
     };
 
@@ -102,19 +296,51 @@ const GoodsRoute = ({ goodsId, routes, onRouteChange }) => {
         
         if (!currentRoute) {
             setUpdateMessage({ type: 'error', text: 'مسیر مورد نظر یافت نشد' });
-            setTimeout(() => setUpdateMessage(null), 4000);
+            setMessageVisible(true);
+            setTimeout(() => {
+                setMessageVisible(false);
+                setTimeout(() => setUpdateMessage(null), 300);
+            }, 4000);
             return;
         }
 
         if (!editingServiceId) {
             setUpdateMessage({ type: 'error', text: 'لطفاً سرویس را انتخاب کنید' });
-            setTimeout(() => setUpdateMessage(null), 4000);
+            setMessageVisible(true);
+            setTimeout(() => {
+                setMessageVisible(false);
+                setTimeout(() => setUpdateMessage(null), 300);
+            }, 4000);
             return;
         }
 
         if (!editingOrder || isNaN(editingOrder) || Number(editingOrder) < 1 || Number(editingOrder) > 3) {
             setUpdateMessage({ type: 'error', text: 'لطفاً شماره مرحله را بین 1 تا 3 انتخاب کنید' });
-            setTimeout(() => setUpdateMessage(null), 4000);
+            setMessageVisible(true);
+            setTimeout(() => {
+                setMessageVisible(false);
+                setTimeout(() => setUpdateMessage(null), 300);
+            }, 4000);
+            return;
+        }
+
+        if (!editingProductionTime || editingProductionTime === '00:00:00') {
+            setUpdateMessage({ type: 'error', text: 'لطفاً زمان تولید را وارد کنید' });
+            setMessageVisible(true);
+            setTimeout(() => {
+                setMessageVisible(false);
+                setTimeout(() => setUpdateMessage(null), 300);
+            }, 4000);
+            return;
+        }
+
+        if (!TIME_REGEX.test(editingProductionTime)) {
+            setUpdateMessage({ type: 'error', text: 'فرمت زمان باید HH:MM:SS باشد' });
+            setMessageVisible(true);
+            setTimeout(() => {
+                setMessageVisible(false);
+                setTimeout(() => setUpdateMessage(null), 300);
+            }, 4000);
             return;
         }
 
@@ -125,15 +351,23 @@ const GoodsRoute = ({ goodsId, routes, onRouteChange }) => {
                 payload: {
                     service: editingServiceId,
                     sequence_order: Number(editingOrder),
+                    production_time_factor: editingProductionTime,
                     updated_at: currentRoute.updated_at
                 }
             })).unwrap();
             
             setUpdateMessage({ type: 'success', text: 'مسیر با موفقیت به‌روزرسانی شد' });
-            setTimeout(() => setUpdateMessage(null), 4000);
-            setEditingRouteId(null);
-            setEditingServiceId('');
-            setEditingOrder('');
+            setMessageVisible(true);
+            setTimeout(() => {
+                setMessageVisible(false);
+                setTimeout(() => {
+                    setUpdateMessage(null);
+                    setEditingRouteId(null);
+                    setEditingServiceId('');
+                    setEditingOrder('');
+                    setEditingProductionTime('');
+                }, 300);
+            }, 3000);
             
             if (onRouteChange) {
                 onRouteChange();
@@ -141,7 +375,11 @@ const GoodsRoute = ({ goodsId, routes, onRouteChange }) => {
         } catch (err) {
             console.error('خطا در به‌روزرسانی مسیر:', err);
             setUpdateMessage({ type: 'error', text: getRouteMessage(err) });
-            setTimeout(() => setUpdateMessage(null), 4000);
+            setMessageVisible(true);
+            setTimeout(() => {
+                setMessageVisible(false);
+                setTimeout(() => setUpdateMessage(null), 300);
+            }, 4000);
         }
     };
 
@@ -154,7 +392,11 @@ const GoodsRoute = ({ goodsId, routes, onRouteChange }) => {
             })).unwrap();
             
             setUpdateMessage({ type: 'success', text: 'مسیر با موفقیت حذف شد' });
-            setTimeout(() => setUpdateMessage(null), 4000);
+            setMessageVisible(true);
+            setTimeout(() => {
+                setMessageVisible(false);
+                setTimeout(() => setUpdateMessage(null), 300);
+            }, 3000);
             
             if (onRouteChange) {
                 onRouteChange();
@@ -162,22 +404,56 @@ const GoodsRoute = ({ goodsId, routes, onRouteChange }) => {
         } catch (err) {
             console.error('خطا در حذف مسیر:', err);
             setUpdateMessage({ type: 'error', text: getRouteMessage(err) });
-            setTimeout(() => setUpdateMessage(null), 4000);
+            setMessageVisible(true);
+            setTimeout(() => {
+                setMessageVisible(false);
+                setTimeout(() => setUpdateMessage(null), 300);
+            }, 4000);
         } finally {
             setDeletingRouteId(null);
         }
     };
 
-    const handleAddRoute = async () => {
-        if (!newServiceId) {
+    const handleAddRoute = async (data) => {
+        const { serviceId, order, productionTime } = data;
+
+        if (!serviceId) {
             setUpdateMessage({ type: 'error', text: 'لطفاً سرویس را انتخاب کنید' });
-            setTimeout(() => setUpdateMessage(null), 4000);
+            setMessageVisible(true);
+            setTimeout(() => {
+                setMessageVisible(false);
+                setTimeout(() => setUpdateMessage(null), 300);
+            }, 4000);
             return;
         }
 
-        if (!newOrder || isNaN(newOrder) || Number(newOrder) < 1 || Number(newOrder) > 3) {
+        if (!order || isNaN(order) || Number(order) < 1 || Number(order) > 3) {
             setUpdateMessage({ type: 'error', text: 'لطفاً شماره مرحله را بین 1 تا 3 انتخاب کنید' });
-            setTimeout(() => setUpdateMessage(null), 4000);
+            setMessageVisible(true);
+            setTimeout(() => {
+                setMessageVisible(false);
+                setTimeout(() => setUpdateMessage(null), 300);
+            }, 4000);
+            return;
+        }
+
+        if (!productionTime || productionTime === '00:00:00') {
+            setUpdateMessage({ type: 'error', text: 'لطفاً زمان تولید را وارد کنید' });
+            setMessageVisible(true);
+            setTimeout(() => {
+                setMessageVisible(false);
+                setTimeout(() => setUpdateMessage(null), 300);
+            }, 4000);
+            return;
+        }
+
+        if (!TIME_REGEX.test(productionTime)) {
+            setUpdateMessage({ type: 'error', text: 'فرمت زمان باید HH:MM:SS باشد' });
+            setMessageVisible(true);
+            setTimeout(() => {
+                setMessageVisible(false);
+                setTimeout(() => setUpdateMessage(null), 300);
+            }, 4000);
             return;
         }
 
@@ -185,16 +461,18 @@ const GoodsRoute = ({ goodsId, routes, onRouteChange }) => {
             await dispatch(addRouteThunk({
                 goodsId: goodsId,
                 payload: {
-                    service: newServiceId,
-                    sequence_order: Number(newOrder)
+                    service: serviceId,
+                    sequence_order: Number(order),
+                    production_time_factor: productionTime
                 }
             })).unwrap();
             
             setUpdateMessage({ type: 'success', text: 'مسیر با موفقیت اضافه شد' });
-            setTimeout(() => setUpdateMessage(null), 4000);
-            setShowAddModal(false);
-            setNewServiceId('');
-            setNewOrder('');
+            setMessageVisible(true);
+            setTimeout(() => {
+                setMessageVisible(false);
+                setTimeout(() => setUpdateMessage(null), 300);
+            }, 3000);
             
             if (onRouteChange) {
                 onRouteChange();
@@ -202,14 +480,12 @@ const GoodsRoute = ({ goodsId, routes, onRouteChange }) => {
         } catch (err) {
             console.error('خطا در افزودن مسیر:', err);
             setUpdateMessage({ type: 'error', text: getRouteMessage(err) });
-            setTimeout(() => setUpdateMessage(null), 4000);
+            setMessageVisible(true);
+            setTimeout(() => {
+                setMessageVisible(false);
+                setTimeout(() => setUpdateMessage(null), 300);
+            }, 4000);
         }
-    };
-
-    const closeModal = () => {
-        setShowAddModal(false);
-        setNewServiceId('');
-        setNewOrder('');
     };
 
     const Message = ({ type, text }) => {
@@ -219,15 +495,27 @@ const GoodsRoute = ({ goodsId, routes, onRouteChange }) => {
         const icon = type === 'success' ? 'fa-check-circle' : 'fa-triangle-exclamation';
         
         return (
-            <div className={`flex items-center justify-between p-2 rounded-lg border ${bgColor} mb-2`}>
+            <div 
+                className={`fixed top-20 left-1/2 -translate-x-1/2 z-50 flex items-center justify-between px-4 py-2.5 rounded-lg border shadow-lg transition-all duration-300 ${bgColor}`}
+                style={{
+                    opacity: messageVisible ? 1 : 0,
+                    transform: `translateX(-50%) translateY(${messageVisible ? 0 : -10}px)`,
+                    pointerEvents: messageVisible ? 'auto' : 'none'
+                }}
+            >
                 <div className="flex items-center gap-2">
                     <i className={`fa-solid ${icon}`} />
                     <span className="text-xs">{text}</span>
                 </div>
                 <button
                     type="button"
-                    onClick={() => setUpdateMessage(null)}
-                    className="text-current opacity-60 hover:opacity-100 transition-opacity"
+                    onClick={() => {
+                        setMessageVisible(false);
+                        setTimeout(() => {
+                            setUpdateMessage(null);
+                        }, 300);
+                    }}
+                    className="text-current opacity-60 hover:opacity-100 transition-opacity mr-2"
                 >
                     <i className="fa-solid fa-xmark text-xs" />
                 </button>
@@ -235,89 +523,10 @@ const GoodsRoute = ({ goodsId, routes, onRouteChange }) => {
         );
     };
 
-    const AddRouteModal = () => (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 backdrop-blur-[2px] p-4">
-            <div 
-                ref={modalRef}
-                className="w-full max-w-md rounded-xl border border-Card_border bg-Background shadow-lg p-6"
-                onClick={(e) => e.stopPropagation()}
-            >
-                <div className="flex items-center justify-between mb-4 border-b border-Card_border pb-3">
-                    <h3 className="text-sm font-medium text-Primary">افزودن مسیر جدید</h3>
-                    <button
-                        type="button"
-                        onClick={closeModal}
-                        className="text-Muted hover:text-Primary transition-colors"
-                    >
-                        <i className="fa-solid fa-xmark" />
-                    </button>
-                </div>
-
-                <div className="flex flex-col gap-4">
-                    <div className="flex flex-col gap-1.5">
-                        <label className="text-[11px] text-Muted">سرویس</label>
-                        <select
-                            value={newServiceId}
-                            onChange={(e) => setNewServiceId(e.target.value)}
-                            className="w-full text-sm rounded-md border border-Card_border bg-Input_bg/40 px-3 py-2 text-Primary outline-none focus:border-Primary/50"
-                            disabled={addRouteLoading}
-                        >
-                            <option value="">انتخاب سرویس</option>
-                            {(serviceList || []).map((service) => (
-                                <option key={service.id} value={service.id}>
-                                    {service.display_name}
-                                </option>
-                            ))}
-                        </select>
-                    </div>
-
-                    <div className="flex flex-col gap-1.5">
-                        <label className="text-[11px] text-Muted">مرحله تولید</label>
-                        <select
-                            value={newOrder}
-                            onChange={(e) => setNewOrder(e.target.value)}
-                            className="w-full text-sm rounded-md border border-Card_border bg-Input_bg/40 px-3 py-2 text-Primary outline-none focus:border-Primary/50"
-                            disabled={addRouteLoading}
-                        >
-                            <option value="">انتخاب مرحله</option>
-                            <option value="1">1</option>
-                            <option value="2">2</option>
-                            <option value="3">3</option>
-                        </select>
-                    </div>
-
-                    <div className="flex items-center gap-2 mt-2">
-                        <button
-                            type="button"
-                            onClick={handleAddRoute}
-                            disabled={addRouteLoading}
-                            className="flex-1 text-sm bg-Secondary text-white px-4 py-2 rounded-lg hover:bg-Secondary/90 transition-colors disabled:opacity-50"
-                        >
-                            {addRouteLoading ? (
-                                <>
-                                    <i className="fa-solid fa-spinner fa-spin ml-1" />
-                                    در حال افزودن...
-                                </>
-                            ) : (
-                                'افزودن'
-                            )}
-                        </button>
-                        <button
-                            type="button"
-                            onClick={closeModal}
-                            disabled={addRouteLoading}
-                            className="flex-1 text-sm border border-Card_border px-4 py-2 rounded-lg text-Primary hover:bg-Input_bg transition-colors disabled:opacity-50"
-                        >
-                            انصراف
-                        </button>
-                    </div>
-                </div>
-            </div>
-        </div>
-    );
-
     return (
         <div className="border border-Card_border rounded-xl p-4">
+            <Message type={updateMessage?.type} text={updateMessage?.text} />
+
             <div className="flex items-center justify-between mb-3">
                 <SectionHeader icon="fa-solid fa-route" title="مسیر تولید" />
                 <button
@@ -330,10 +539,6 @@ const GoodsRoute = ({ goodsId, routes, onRouteChange }) => {
                 </button>
             </div>
 
-            {updateMessage && (
-                <Message type={updateMessage.type} text={updateMessage.text} />
-            )}
-
             {/* دسکتاپ - جدول */}
             <div className="hidden sm:block overflow-x-auto">
                 <table className="w-full text-xs">
@@ -342,6 +547,7 @@ const GoodsRoute = ({ goodsId, routes, onRouteChange }) => {
                             <th className="px-3 py-2 text-center font-medium text-Muted">#</th>
                             <th className="px-3 py-2 text-center font-medium text-Muted">مرحله تولید</th>
                             <th className="px-3 py-2 text-center font-medium text-Muted">سرویس</th>
+                            <th className="px-3 py-2 text-center font-medium text-Muted">زمان تولید</th>
                             <th className="px-3 py-2 text-center font-medium text-Muted">تاریخ ایجاد</th>
                             <th className="px-3 py-2 text-center font-medium text-Muted">ایجادکننده</th>
                             <th className="px-3 py-2 text-center font-medium text-Muted">به‌روزرسانی‌کننده</th>
@@ -395,6 +601,18 @@ const GoodsRoute = ({ goodsId, routes, onRouteChange }) => {
                                             </select>
                                         ) : (
                                             route.service
+                                        )}
+                                    </td>
+                                    <td className="px-3 py-2 text-center text-Muted">
+                                        {isEditing ? (
+                                            <DurationInput
+                                                value={editingProductionTime}
+                                                onChange={setEditingProductionTime}
+                                                disabled={isUpdating}
+                                                className="w-20 text-center text-xs rounded-md border border-Card_border bg-Input_bg/40 px-1 py-1 text-Primary outline-none focus:border-Primary/50 font-mono"
+                                            />
+                                        ) : (
+                                            formatDuration(route.production_time_factor) || "—"
                                         )}
                                     </td>
                                     <td className="px-3 py-2 text-center text-Muted">
@@ -508,6 +726,15 @@ const GoodsRoute = ({ goodsId, routes, onRouteChange }) => {
                                         </select>
                                     </div>
                                     <div className="flex items-center gap-2">
+                                        <span className="text-[10px] text-Muted">زمان تولید:</span>
+                                        <DurationInput
+                                            value={editingProductionTime}
+                                            onChange={setEditingProductionTime}
+                                            disabled={isUpdating}
+                                            className="flex-1 text-xs rounded-md border border-Card_border bg-Input_bg/40 px-2 py-1 text-Primary outline-none focus:border-Primary/50 font-mono text-center"
+                                        />
+                                    </div>
+                                    <div className="flex items-center gap-2">
                                         <button
                                             type="button"
                                             onClick={() => handleUpdateRoute(route.id)}
@@ -561,6 +788,12 @@ const GoodsRoute = ({ goodsId, routes, onRouteChange }) => {
                                     </div>
                                     <div className="grid grid-cols-2 gap-x-2 gap-y-1.5 text-[11px]">
                                         <div className="flex flex-col gap-0.5">
+                                            <span className="text-Muted">زمان تولید</span>
+                                            <span className="text-Primary">
+                                                {formatDuration(route.production_time_factor) || "—"}
+                                            </span>
+                                        </div>
+                                        <div className="flex flex-col gap-0.5">
                                             <span className="text-Muted">تاریخ ایجاد</span>
                                             <span className="text-Primary">
                                                 {formatDateTime(route.created_at)}
@@ -569,12 +802,6 @@ const GoodsRoute = ({ goodsId, routes, onRouteChange }) => {
                                         <div className="flex flex-col gap-0.5">
                                             <span className="text-Muted">ایجادکننده</span>
                                             <span className="text-Primary">{route.created_by || "—"}</span>
-                                        </div>
-                                        <div className="flex flex-col gap-0.5">
-                                            <span className="text-Muted">تاریخ به‌روزرسانی</span>
-                                            <span className="text-Primary">
-                                                {formatDateTime(route.updated_at)}
-                                            </span>
                                         </div>
                                         <div className="flex flex-col gap-0.5">
                                             <span className="text-Muted">به‌روزرسانی‌کننده</span>
@@ -589,7 +816,14 @@ const GoodsRoute = ({ goodsId, routes, onRouteChange }) => {
             </div>
 
             {/* مودال افزودن مسیر */}
-            {showAddModal && <AddRouteModal />}
+            <AddRouteModal
+                isOpen={showAddModal}
+                onClose={() => setShowAddModal(false)}
+                onAdd={handleAddRoute}
+                loading={addRouteLoading}
+                serviceList={serviceList}
+                serviceLoading={serviceLoading}
+            />
         </div>
     );
 };

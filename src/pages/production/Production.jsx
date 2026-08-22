@@ -1,5 +1,5 @@
 // pages/production/Production.jsx
-import React, { useEffect, useMemo, useState } from "react";
+import React, { useEffect, useMemo, useState, useRef } from "react";
 import { createPortal } from "react-dom";
 import { useDispatch, useSelector } from "react-redux";
 import { useSearchParams } from "react-router-dom";
@@ -7,7 +7,6 @@ import * as DatePickerModule from "react-multi-date-picker";
 import * as persianModule from "react-date-object/calendars/persian";
 import * as persian_faModule from "react-date-object/locales/persian_fa";
 import "react-multi-date-picker/styles/layouts/mobile.css";
-import { useRef } from "react";
 import { getServicesList } from "../../features/production/services/serviceslist/serviceslistthunk";
 import { getServiceDetail } from "../../features/production/services/serviceditails/serviceditailsthunk";
 import { clearServiceDetail } from "../../features/production/services/serviceditails/serviceditailsslice";
@@ -129,6 +128,214 @@ const buildParams = (filters) => {
   return params;
 };
 
+// ======== مودال افزودن خدمت جدید ========
+const AddServiceModal = ({ onClose, onSuccess }) => {
+  const dispatch = useDispatch();
+  const { positions, loading: positionsLoading, loaded: positionsLoaded } = useSelector((state) => state.positions);
+
+  // بارگذاری موقعیت‌ها برای سلکت
+  useEffect(() => {
+    if (!positionsLoaded && !positionsLoading) {
+      dispatch(getPositionsThunk());
+    }
+  }, [dispatch, positionsLoaded, positionsLoading]);
+
+  const [submitting, setSubmitting] = useState(false);
+  const [error, setError] = useState(null);
+  const [supervisorPosition, setSupervisorPosition] = useState("");
+
+  const rowIdCounter = useRef(1);
+  const [rows, setRows] = useState([
+    { rowId: 0, display_name: "", code: "" },
+  ]);
+
+  const updateRow = (rowId, changes) => {
+    setRows((prev) =>
+      prev.map((row) => (row.rowId === rowId ? { ...row, ...changes } : row))
+    );
+  };
+
+  const handleAddRow = () => {
+    rowIdCounter.current += 1;
+    setRows((prev) => [
+      ...prev,
+      { rowId: rowIdCounter.current, display_name: "", code: "" },
+    ]);
+  };
+
+  const handleRemoveRow = (rowId) => {
+    setRows((prev) => (prev.length > 1 ? prev.filter((r) => r.rowId !== rowId) : prev));
+  };
+
+  const handleSubmit = async (e) => {
+    e.preventDefault();
+
+    const validRows = rows.filter(
+      (r) => r.display_name.trim() && r.code.trim()
+    );
+
+    if (validRows.length === 0) {
+      setError("لطفاً حداقل یک خدمت با نام و کد معتبر وارد کنید");
+      return;
+    }
+
+    setSubmitting(true);
+    setError(null);
+
+    try {
+      await Promise.all(
+        validRows.map((row) =>
+          dispatch(
+            createServiceThunk({
+              display_name: row.display_name.trim(),
+              code: row.code.trim(),
+              supervisor_position_id: supervisorPosition || null,
+            })
+          ).unwrap()
+        )
+      );
+      onSuccess?.();
+      onClose();
+    } catch (err) {
+      setError(err?.fa || err?.message?.fa || "خطا در ساخت خدمت جدید");
+    } finally {
+      setSubmitting(false);
+    }
+  };
+
+  return (
+    <>
+      <style>{scrollbarStyles}</style>
+
+      <div
+        className="fixed inset-0 bg-black/30 flex items-center justify-center z-50 px-4"
+        onClick={onClose}
+      >
+        <div
+          className="bg-Background border border-Card_border rounded-xl p-6 max-w-2xl w-full max-h-[80vh] flex flex-col overflow-hidden relative"
+          onClick={(e) => e.stopPropagation()}
+        >
+          <h4 className="text-sm font-medium text-Primary mb-4 flex-shrink-0">افزودن خدمت جدید</h4>
+
+          <form onSubmit={handleSubmit} className="flex-1 flex flex-col min-h-0 overflow-hidden">
+            <div className="flex-1 overflow-y-auto space-y-4 pr-1 thin-scrollbar">
+              {rows.map((row, index) => (
+                <div
+                  key={row.rowId}
+                  className="flex flex-col gap-2 border border-Card_border rounded-lg p-3"
+                >
+                  <div className="flex items-center justify-between">
+                    <span className="text-[11px] text-Muted">خدمت {index + 1}</span>
+                    {rows.length > 1 && (
+                      <button
+                        type="button"
+                        onClick={() => handleRemoveRow(row.rowId)}
+                        disabled={submitting}
+                        className="text-Muted hover:text-red-500 transition-colors"
+                      >
+                        <i className="fa-solid fa-trash-can text-xs" />
+                      </button>
+                    )}
+                  </div>
+
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                    <div className="flex flex-col gap-1.5">
+                      <label className="text-xs text-Muted">نام نمایشی</label>
+                      <input
+                        type="text"
+                        value={row.display_name}
+                        onChange={(e) => updateRow(row.rowId, { display_name: e.target.value })}
+                        disabled={submitting}
+                        placeholder="مثلاً لیزر کاری"
+                        dir="rtl"
+                        className="bg-Input_bg border border-Card_border rounded-lg px-3 py-2 text-sm text-Primary outline-none focus:ring-1 focus:ring-Secondary placeholder:text-Muted/60"
+                      />
+                    </div>
+
+                    <div className="flex flex-col gap-1.5">
+                      <label className="text-xs text-Muted">کد</label>
+                      <input
+                        type="text"
+                        value={row.code}
+                        onChange={(e) => updateRow(row.rowId, { code: e.target.value })}
+                        disabled={submitting}
+                        placeholder="مثلاً LSR"
+                        dir="ltr"
+                        className="bg-Input_bg border border-Card_border rounded-lg px-3 py-2 text-sm text-Primary outline-none focus:ring-1 focus:ring-Secondary placeholder:text-Muted/60"
+                      />
+                    </div>
+                    
+                  </div>
+                </div>
+              ))}
+            </div>
+            
+
+            {/* انتخاب موقعیت سرپرست */}
+            <div className="flex-shrink-0 mt-4 pt-4 border-t border-Card_border">
+              <div className="flex flex-col gap-1.5">
+                <label className="text-xs text-Muted">موقعیت سرپرست</label>
+                <select
+                  value={supervisorPosition}
+                  onChange={(e) => setSupervisorPosition(e.target.value)}
+                  disabled={submitting || positionsLoading}
+                  className="bg-Input_bg border border-Card_border rounded-lg px-3 py-2 text-sm text-Primary outline-none focus:ring-1 focus:ring-Secondary"
+                >
+                  <option value="">بدون سرپرست</option>
+                  {(positions || []).map((position) => (
+                    <option key={position.id} value={position.id}>
+                      {position.display_name || position.title || position.name}
+                    </option>
+                  ))}
+                </select>
+                {positionsLoading && (
+                  <span className="text-[10px] text-Muted">
+                    <i className="fa-solid fa-spinner fa-spin ml-1" />
+                    در حال بارگذاری...
+                  </span>
+                )}
+              </div>
+            </div>
+
+            <div className="flex-shrink-0 mt-4 space-y-3">
+              <button
+                type="button"
+                onClick={handleAddRow}
+                disabled={submitting}
+                className="w-full h-10 rounded-lg border border-dashed border-Secondary text-Secondary text-sm font-medium hover:bg-Secondary/5 transition-colors disabled:opacity-40"
+              >
+                <i className="fa-solid fa-plus text-xs ml-1.5" />
+                افزودن خدمت جدید
+              </button>
+
+              {error && <p className="text-xs text-red-500">{error}</p>}
+
+              <div className="flex items-center gap-2">
+                <button
+                  type="submit"
+                  disabled={submitting}
+                  className="flex-1 h-10 rounded-lg bg-Secondary text-white text-sm font-medium hover:opacity-90 transition-opacity disabled:opacity-50"
+                >
+                  {submitting ? "در حال ارسال..." : "تایید نهایی"}
+                </button>
+                <button
+                  type="button"
+                  onClick={onClose}
+                  disabled={submitting}
+                  className="flex-1 h-10 rounded-lg border border-Card_border text-Primary text-sm font-medium hover:bg-Input_bg transition-colors"
+                >
+                  انصراف
+                </button>
+              </div>
+            </div>
+          </form>
+        </div>
+      </div>
+    </>
+  );
+};
+
+// ======== مودال جزئیات و ویرایش ========
 const DetailsEditModal = ({ itemId, isOpen, onClose, onSave }) => {
   const dispatch = useDispatch();
   const {
@@ -138,19 +345,13 @@ const DetailsEditModal = ({ itemId, isOpen, onClose, onSave }) => {
   } = useSelector((state) => state.serviceDetail);
 
   const { positions: positionOptions, loading: positionsLoading, loaded: positionsLoaded } =
-    useSelector((state) => state.positions) 
+    useSelector((state) => state.positions);
 
   const [isEditing, setIsEditing] = useState(false);
   const [formValues, setFormValues] = useState({
     display_name: "",
     code: "",
-    supervisor_position_id: "",
-    updated_at: "",
-  });
-  const [initialFormValues, setInitialFormValues] = useState({
-    display_name: "",
-    code: "",
-    supervisor_position_id: "",
+    supervisor_position: "",
     updated_at: "",
   });
   const [isSaving, setIsSaving] = useState(false);
@@ -184,9 +385,10 @@ const DetailsEditModal = ({ itemId, isOpen, onClose, onSave }) => {
 
   useEffect(() => {
     if (detail) {
-      // پیدا کردن موقعیت منطبق با supervisor_position
       let matchedPositionId = "";
-      if (detail.supervisor_position && positionOptions && positionOptions.length > 0) {
+      if (detail.supervisor_position_id) {
+        matchedPositionId = detail.supervisor_position_id;
+      } else if (detail.supervisor_position && positionOptions && positionOptions.length > 0) {
         const matched = positionOptions.find(
           (p) => p.display_name === detail.supervisor_position
         );
@@ -195,14 +397,12 @@ const DetailsEditModal = ({ itemId, isOpen, onClose, onSave }) => {
         }
       }
       
-      const newFormValues = {
+      setFormValues({
         display_name: detail.display_name || "",
         code: detail.code || "",
-        supervisor_position: matchedPositionId || detail.supervisor_position_id || "",
+        supervisor_position: matchedPositionId || "",
         updated_at: detail.updated_at || "",
-      };
-      setFormValues(newFormValues);
-      setInitialFormValues(newFormValues);
+      });
     }
   }, [detail, positionOptions]);
 
@@ -223,24 +423,11 @@ const DetailsEditModal = ({ itemId, isOpen, onClose, onSave }) => {
   };
 
   const handleSaveClick = async () => {
-    // Check if any field has changed
-    const hasChanges = 
-      formValues.display_name !== initialFormValues.display_name ||
-      formValues.code !== initialFormValues.code ||
-      formValues.supervisor_position !== initialFormValues.supervisor_position;
-
-    if (!hasChanges) {
-      setSaveError("هیچ تغییری اعمال نشده است");
-      return;
-    }
-
     setIsSaving(true);
     setSaveError(null);
     try {
       await onSave(itemId, formValues);
       setIsEditing(false);
-      // Update initial values after successful save
-      setInitialFormValues(formValues);
     } catch (err) {
       setSaveError(
         typeof err === "string" ? err : err?.fa || "خطا در ثبت ویرایش"
@@ -273,7 +460,7 @@ const DetailsEditModal = ({ itemId, isOpen, onClose, onSave }) => {
           </button>
         </div>
 
-        {detailLoading ? (
+        {item === 0 ? (
           <div className="flex items-center justify-center h-[180px]">
             <span className="text-sm text-Muted">
               <i className="fa-solid fa-spinner fa-spin ml-1" />
@@ -427,174 +614,7 @@ const DetailsEditModal = ({ itemId, isOpen, onClose, onSave }) => {
   return createPortal(modalContent, document.body);
 };
 
-const AddServiceModal = ({ onClose, onSuccess }) => {
-  const dispatch = useDispatch();
-
-  const [submitting, setSubmitting] = useState(false);
-  const [error, setError] = useState(null);
-
-  const rowIdCounter = useRef(1);
-  const [rows, setRows] = useState([
-    { rowId: 0, display_name: "", code: "" },
-  ]);
-
-  const updateRow = (rowId, changes) => {
-    setRows((prev) =>
-      prev.map((row) => (row.rowId === rowId ? { ...row, ...changes } : row))
-    );
-  };
-
-  const handleAddRow = () => {
-    rowIdCounter.current += 1;
-    setRows((prev) => [
-      ...prev,
-      { rowId: rowIdCounter.current, display_name: "", code: "" },
-    ]);
-  };
-
-  const handleRemoveRow = (rowId) => {
-    setRows((prev) => (prev.length > 1 ? prev.filter((r) => r.rowId !== rowId) : prev));
-  };
-
-  const handleSubmit = async (e) => {
-    e.preventDefault();
-
-    const validRows = rows.filter(
-      (r) => r.display_name.trim() && r.code.trim()
-    );
-
-    if (validRows.length === 0) {
-      setError("لطفاً حداقل یک خدمت با نام و کد معتبر وارد کنید");
-      return;
-    }
-
-    setSubmitting(true);
-    setError(null);
-
-    try {
-      await Promise.all(
-        validRows.map((row) =>
-          dispatch(
-            createServiceThunk({
-              display_name: row.display_name.trim(),
-              code: row.code.trim(),
-            })
-          ).unwrap()
-        )
-      );
-      onSuccess?.();
-      onClose();
-    } catch (err) {
-      setError(err?.fa || err?.message?.fa || "خطا در ساخت خدمت جدید");
-    } finally {
-      setSubmitting(false);
-    }
-  };
-
-  return (
-    <>
-      <style>{scrollbarStyles}</style>
-
-      <div
-        className="fixed inset-0 bg-black/30 flex items-center justify-center z-50 px-4"
-        onClick={onClose}
-      >
-        <div
-          className="bg-Background border border-Card_border rounded-xl p-6 max-w-2xl w-full max-h-[80vh] flex flex-col overflow-hidden relative"
-          onClick={(e) => e.stopPropagation()}
-        >
-          <h4 className="text-sm font-medium text-Primary mb-4 flex-shrink-0">افزودن خدمت جدید</h4>
-
-          <form onSubmit={handleSubmit} className="flex-1 flex flex-col min-h-0 overflow-hidden">
-            <div className="flex-1 overflow-y-auto space-y-4 pr-1 thin-scrollbar">
-              {rows.map((row, index) => (
-                <div
-                  key={row.rowId}
-                  className="flex flex-col gap-2 border border-Card_border rounded-lg p-3"
-                >
-                  <div className="flex items-center justify-between">
-                    <span className="text-[11px] text-Muted">خدمت {index + 1}</span>
-                    {rows.length > 1 && (
-                      <button
-                        type="button"
-                        onClick={() => handleRemoveRow(row.rowId)}
-                        disabled={submitting}
-                        className="text-Muted hover:text-red-500 transition-colors"
-                      >
-                        <i className="fa-solid fa-trash-can text-xs" />
-                      </button>
-                    )}
-                  </div>
-
-                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-                    <div className="flex flex-col gap-1.5">
-                      <label className="text-xs text-Muted">نام نمایشی</label>
-                      <input
-                        type="text"
-                        value={row.display_name}
-                        onChange={(e) => updateRow(row.rowId, { display_name: e.target.value })}
-                        disabled={submitting}
-                        placeholder="مثلاً رنگ کرم"
-                        dir="rtl"
-                        className="bg-Input_bg border border-Card_border rounded-lg px-3 py-2 text-sm text-Primary outline-none focus:ring-1 focus:ring-Secondary placeholder:text-Muted/60"
-                      />
-                    </div>
-
-                    <div className="flex flex-col gap-1.5">
-                      <label className="text-xs text-Muted">کد</label>
-                      <input
-                        type="text"
-                        value={row.code}
-                        onChange={(e) => updateRow(row.rowId, { code: e.target.value })}
-                        disabled={submitting}
-                        placeholder="مثلاً P"
-                        dir="ltr"
-                        className="bg-Input_bg border border-Card_border rounded-lg px-3 py-2 text-sm text-Primary outline-none focus:ring-1 focus:ring-Secondary placeholder:text-Muted/60"
-                      />
-                    </div>
-                  </div>
-                </div>
-              ))}
-            </div>
-
-            <div className="flex-shrink-0 mt-4 space-y-3">
-              <button
-                type="button"
-                onClick={handleAddRow}
-                disabled={submitting}
-                className="w-full h-10 rounded-lg border border-dashed border-Secondary text-Secondary text-sm font-medium hover:bg-Secondary/5 transition-colors disabled:opacity-40"
-              >
-                <i className="fa-solid fa-plus text-xs ml-1.5" />
-                افزودن خدمت جدید
-              </button>
-
-              {error && <p className="text-xs text-red-500">{error}</p>}
-
-              <div className="flex items-center gap-2">
-                <button
-                  type="submit"
-                  disabled={submitting}
-                  className="flex-1 h-10 rounded-lg bg-Secondary text-white text-sm font-medium hover:opacity-90 transition-opacity disabled:opacity-50"
-                >
-                  {submitting ? "در حال ارسال..." : "تایید نهایی"}
-                </button>
-                <button
-                  type="button"
-                  onClick={onClose}
-                  disabled={submitting}
-                  className="flex-1 h-10 rounded-lg border border-Card_border text-Primary text-sm font-medium hover:bg-Input_bg transition-colors"
-                >
-                  انصراف
-                </button>
-              </div>
-            </div>
-          </form>
-        </div>
-      </div>
-    </>
-  );
-};
-
+// ======== کامپوننت کارت موبایل ========
 const MobileRowCard = ({ item, index, onEditClick }) => {
   return (
     <div className="rounded-lg border border-Card_border bg-Input_bg/40 p-3 flex flex-col gap-2" dir="rtl">
@@ -641,6 +661,7 @@ const MobileRowCard = ({ item, index, onEditClick }) => {
   );
 };
 
+// ======== نوار فیلترها ========
 const FiltersBar = ({ filters, onChange, onReset }) => {
   const handleField = (key) => (e) => {
     const value = e.target.value;
@@ -754,6 +775,7 @@ const FiltersBar = ({ filters, onChange, onReset }) => {
   );
 };
 
+// ======== نوار صفحه‌بندی ========
 const PaginationBar = ({ filters, onChange, totalCount }) => {
   const { limit, offset } = filters;
   const currentPage = Math.floor(offset / limit) + 1;
@@ -812,6 +834,7 @@ const PaginationBar = ({ filters, onChange, totalCount }) => {
   );
 };
 
+// ======== کامپوننت اصلی ========
 const Production = () => {
   const dispatch = useDispatch();
   const { data, loading, error, count } = useSelector((state) => state.servicesList);
@@ -862,7 +885,7 @@ const Production = () => {
         id,
         display_name: formValues.display_name,
         code: formValues.code,
-        supervisor_position_id: formValues.supervisor_position,
+        supervisor_position_id: formValues.supervisor_position, // ارسال supervisor_position_id
         updated_at: formValues.updated_at,
       })
     ).unwrap();

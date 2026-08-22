@@ -4,7 +4,7 @@ import { paintslistservice } from "./Paintslistservice";
 
 export const getPaintsListThunk = createAsyncThunk(
   "paintsList/getPaintsList",
-  async (params, { rejectWithValue }) => {
+  async (params={}, { rejectWithValue }) => {
     try {
       const response = await paintslistservice(params);
       return response.data;

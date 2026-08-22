@@ -3,7 +3,7 @@ import { createSlice } from "@reduxjs/toolkit";
 import { getUsersPositionThunk } from "./UsersPositionThunk";
 
 const initialState = {
-  data: null, // { user_id, username, first_name, last_name, positions: [...] }
+  data: null, 
   loading: false,
   error: null,
   loaded: false,

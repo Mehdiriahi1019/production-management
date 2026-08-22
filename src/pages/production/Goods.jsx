@@ -111,7 +111,7 @@ const buildParams = (filters) => {
     return params;
 };
 
-const MobileCard = ({ item, index, openTooltipId, setOpenTooltipId }) => {
+const MobileCard = React.memo(({ item, index, openTooltipId, setOpenTooltipId }) => {
     const showTooltip = openTooltipId === item.id;
     const infoTooltip = [
         `تاریخ ایجاد: ${item.created_at || "—"}`,
@@ -193,7 +193,69 @@ const MobileCard = ({ item, index, openTooltipId, setOpenTooltipId }) => {
             </div>
         </div>
     );
-};
+});
+
+MobileCard.displayName = 'MobileCard';
+
+const PaginationBar = React.memo(({ filters, onChange, totalCount }) => {
+    const { limit, offset } = filters;
+    const currentPage = Math.floor(offset / limit) + 1;
+    const totalPages = totalCount ? Math.max(1, Math.ceil(totalCount / limit)) : null;
+
+    const goPrev = () => {
+        onChange({ ...filters, offset: Math.max(0, offset - limit) });
+    };
+    const goNext = () => {
+        onChange({ ...filters, offset: offset + limit });
+    };
+    const changeLimit = (e) => {
+        onChange({ ...filters, limit: Number(e.target.value), offset: 0 });
+    };
+
+    return (
+        <div className="flex-shrink-0 flex items-center justify-between gap-2 p-2 border-t border-Card_border bg-Background text-xs">
+            <div className="flex items-center gap-2">
+                <span className="text-Muted">تعداد در صفحه:</span>
+                <select
+                    value={limit}
+                    onChange={changeLimit}
+                    className="rounded-md border border-Card_border bg-Background px-2 py-1 text-Primary outline-none"
+                >
+                    {[10, 20, 50, 100].map((n) => (
+                        <option key={n} value={n}>
+                            {n.toLocaleString()}
+                        </option>
+                    ))}
+                </select>
+            </div>
+
+            <div className="flex items-center gap-2">
+                <button
+                    type="button"
+                    onClick={goPrev}
+                    disabled={offset === 0}
+                    className="rounded-md border border-Card_border px-2 py-1 text-Muted disabled:opacity-40 hover:bg-Input_bg transition-colors"
+                >
+                    قبلی
+                </button>
+                <span className="text-Muted">
+                    صفحه {currentPage}
+                    {totalPages > 0 ? ` از ${totalPages}` : ""}
+                </span>
+                <button
+                    type="button"
+                    onClick={goNext}
+                    disabled={totalPages ? currentPage >= totalPages : false}
+                    className="rounded-md border border-Card_border px-2 py-1 text-Muted disabled:opacity-40 hover:bg-Input_bg transition-colors"
+                >
+                    بعدی
+                </button>
+            </div>
+        </div>
+    );
+});
+
+PaginationBar.displayName = 'PaginationBar';
 
 const CreateGoodsModal = ({
     modalRef,
@@ -297,14 +359,12 @@ const CreateGoodsModal = ({
                         </div>
                     </div>
 
-                    {/* زمان تولید (مدت زمان ساخت قطعه) */}
                     <div className="flex flex-col gap-1.5">
                         <label className="text-[11px] text-Muted">زمان تولید (مدت زمان ساخت)</label>
                         <input
                             type="text"
                             value={newGoods.production_time_factor || "00:00:00"}
                             onChange={(e) => {
-                                // فقط اعداد و : مجاز باشد
                                 const value = e.target.value.replace(/[^0-9:]/g, '');
                                 setNewGoods({ ...newGoods, production_time_factor: value })
                             }}
@@ -315,7 +375,6 @@ const CreateGoodsModal = ({
                         <span className="text-[10px] text-Muted">فرمت: ساعت:دقیقه:ثانیه (مثال: 00:25:30)</span>
                     </div>
 
-                    {/* فایل‌ها */}
                     <div className="flex flex-col gap-1.5">
                         <label className="text-[11px] text-Muted">فایل ها</label>
                         <input
@@ -344,7 +403,6 @@ const CreateGoodsModal = ({
                         )}
                     </div>
 
-                    {/* مسیرها */}
                     <div className="flex flex-col gap-1.5">
                         <div className="flex items-center justify-between">
                             <label className="text-[11px] text-Muted">مسیرهای تولید</label>
@@ -720,48 +778,6 @@ const Goods = () => {
         ? currentPage < totalPages
         : goods.length === filters.limit;
 
-    const paginationFooter = (
-        <div className="flex-shrink-0 flex items-center justify-between gap-2 p-2 border-t border-Card_border bg-Background text-xs">
-            <div className="flex items-center gap-2">
-                <span className="text-Muted">تعداد در صفحه:</span>
-                <select
-                    value={filters.limit}
-                    onChange={(e) => setFilters({ ...filters, limit: Number(e.target.value), offset: 0 })}
-                    className="rounded-md border border-Card_border bg-Background px-2 py-1 text-Primary outline-none"
-                >
-                    {[10, 20, 50, 100].map((n) => (
-                        <option key={n} value={n}>
-                            {n.toLocaleString()}
-                        </option>
-                    ))}
-                </select>
-            </div>
-
-            <div className="flex items-center gap-2">
-                <button
-                    type="button"
-                    onClick={() => setFilters({ ...filters, offset: Math.max(0, filters.offset - filters.limit) })}
-                    disabled={filters.offset === 0}
-                    className="rounded-md border border-Card_border px-2 py-1 text-Muted disabled:opacity-40 hover:bg-Input_bg transition-colors"
-                >
-                    قبلی
-                </button>
-                <span className="text-Muted">
-                    صفحه {currentPage}
-                    {totalPages > 0 ? ` از ${totalPages}` : ""}
-                </span>
-                <button
-                    type="button"
-                    onClick={() => setFilters({ ...filters, offset: filters.offset + filters.limit })}
-                    disabled={!hasNextPage}
-                    className="rounded-md border border-Card_border px-2 py-1 text-Muted disabled:opacity-40 hover:bg-Input_bg transition-colors"
-                >
-                    بعدی
-                </button>
-            </div>
-        </div>
-    );
-
     return (
         <>
             <style>{datePickerStyles}</style>
@@ -918,7 +934,7 @@ const Goods = () => {
                         </div>
                     </div>
 
-                    {loading ? (
+                    {loading && goods.length === 0 ? (
                         <div className="flex items-center justify-center h-[300px]">
                             <span className="text-sm text-Muted">
                                 <i className="fa-solid fa-spinner fa-spin ml-1" />
@@ -940,8 +956,8 @@ const Goods = () => {
                             </span>
                         </div>
                     ) : (
-                        <>
-                            <div className="flex flex-col gap-2 p-2 sm:hidden">
+                        <div className={`transition-opacity duration-150 ${loading ? 'opacity-50 pointer-events-none' : ''}`}>
+                            <div className="flex flex-col gap-2 p-2 lg:hidden">
                                 {goods.map((item, index) => (
                                     <MobileCard
                                         key={item.id}
@@ -952,13 +968,17 @@ const Goods = () => {
                                     />
                                 ))}
                             </div>
-                            <div className="sm:hidden">
-                                {paginationFooter}
+                            <div className="lg:hidden">
+                                <PaginationBar 
+                                    filters={filters} 
+                                    onChange={setFilters} 
+                                    totalCount={total} 
+                                />
                             </div>
 
-                            <div className="hidden sm:flex sm:flex-col">
+                            <div className="hidden lg:flex lg:flex-col">
                                 <div className="overflow-x-auto overflow-y-auto max-h-[380px]">
-                                    <table className="w-full text-xs">
+                                    <table className="w-full min-w-[720px] text-xs">
                                         <thead className="sticky top-0 z-10">
                                             <tr className="border-b border-Card_border bg-Input_bg">
                                                 <th className="px-3 py-2 text-center font-medium text-Muted">#</th>
@@ -1021,9 +1041,13 @@ const Goods = () => {
                                         </tbody>
                                     </table>
                                 </div>
-                                {paginationFooter}
+                                <PaginationBar 
+                                    filters={filters} 
+                                    onChange={setFilters} 
+                                    totalCount={total} 
+                                />
                             </div>
-                        </>
+                        </div>
                     )}
                 </div>
             </div>
